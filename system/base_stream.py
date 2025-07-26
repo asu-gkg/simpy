@@ -1,0 +1,1 @@
+# Base stream class - corresponds to BaseStream.cc/BaseStream.hh in SimAI 

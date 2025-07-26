@@ -1,0 +1,1 @@
+# All-to-all collective algorithm - corresponds to AllToAll.cc/AllToAll.hh in SimAI 

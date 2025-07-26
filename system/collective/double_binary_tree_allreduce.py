@@ -1,0 +1,1 @@
+# Double binary tree allreduce algorithm - corresponds to DoubleBinaryTreeAllReduce.cc/DoubleBinaryTreeAllReduce.hh in SimAI 

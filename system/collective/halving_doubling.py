@@ -1,0 +1,1 @@
+# Halving-doubling collective algorithm - corresponds to HalvingDoubling.cc/HalvingDoubling.hh in SimAI 

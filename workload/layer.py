@@ -1,0 +1,1 @@
+# Layer class - corresponds to Layer.cc/Layer.hh in SimAI 

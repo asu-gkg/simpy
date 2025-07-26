@@ -1,0 +1,1 @@
+# Collective module - corresponds to collective directory in SimAI 

@@ -1,0 +1,1 @@
+# Ring topology class - corresponds to RingTopology.cc/RingTopology.hh in SimAI 

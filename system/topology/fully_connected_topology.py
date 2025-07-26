@@ -1,0 +1,1 @@
+# Fully connected topology class - corresponds to GeneralComplexTopology.cc/GeneralComplexTopology.hh in SimAI 

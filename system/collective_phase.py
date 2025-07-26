@@ -1,0 +1,1 @@
+# Collective phase class - corresponds to CollectivePhase.cc/CollectivePhase.hh in SimAI 

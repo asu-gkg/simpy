@@ -1,0 +1,1 @@
+# Binary tree topology class - corresponds to BinaryTree.cc/BinaryTree.hh in SimAI 

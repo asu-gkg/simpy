@@ -1,0 +1,1 @@
+# Ring collective algorithm - corresponds to Ring.cc/Ring.hh in SimAI 

@@ -1,0 +1,1 @@
+# Algorithm base class - corresponds to Algorithm.cc/Algorithm.hh in SimAI 

@@ -1,0 +1,1 @@
+# Simple memory class - corresponds to SimpleMemory.cc/SimpleMemory.hh in SimAI 

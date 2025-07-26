@@ -1,0 +1,1 @@
+# Stream baseline class - corresponds to StreamBaseline.cc/StreamBaseline.hh in SimAI 

@@ -1,0 +1,1 @@
+# Basic logical topology class - corresponds to BasicLogicalTopology.cc/BasicLogicalTopology.hh in SimAI 
