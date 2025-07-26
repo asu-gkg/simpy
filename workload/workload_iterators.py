@@ -38,8 +38,9 @@ class WorkloadIterators:
             for pass_counter in range(self.workload.total_pass):
                 self.workload.layers[self.workload.index].issue_weight_grad_comm(
                     SchedulingPolicy.None_, CollectiveBarrier.Non_Blocking)
+            # 更新成员变量以反映所有 pass 都已完成
+            self.workload.pass_counter = self.workload.total_pass
         self.workload.check_for_sim_end()
-    
     def iterate_data_parallel(self):
         """
         数据并行迭代 - 对应C++函数

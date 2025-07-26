@@ -34,6 +34,13 @@ class ComType(Enum):
     All_Reduce_All_to_All = "All_Reduce_All_to_All"
     All_Reduce_NVLS = "All_Reduce_NVLS"
 
+class MockNcclGroupType(Enum):
+    """MockNccl::GroupType枚举 - 对应C++版本的MockNccl::GroupType"""
+    TP = "TP"
+    DP = "DP"
+    EP = "EP"
+    DP_EP = "DP_EP"
+
 class CollectiveOptimization(Enum):
     Baseline = "Baseline"
     LocalBWAware = "LocalBWAware"
@@ -147,3 +154,17 @@ class ParallelStrategy(Enum):
     EP = "EP"
     DP_EP = "DP_EP"
     NONE = "NONE"
+
+# 辅助函数
+def comtype_to_coll(comtype: ComType) -> str:
+    """将ComType转换为字符串表示"""
+    if comtype == ComType.All_Reduce:
+        return "allreduce"
+    elif comtype == ComType.All_Gather:
+        return "allgather"
+    elif comtype == ComType.Reduce_Scatter:
+        return "reducescatter"
+    elif comtype == ComType.All_to_All:
+        return "alltoall"
+    else:
+        return "unknown"
