@@ -12,10 +12,10 @@ class AstraMemoryAPI(ABC):
         内存读取
         
         Args:
-            size: 读取的数据大小（字节）
+            size: 读取的数据大小（字节，对应C++的uint64_t）
             
         Returns:
-            读取延迟时间
+            读取延迟时间（对应C++的uint64_t）
         """
         pass
     
@@ -25,10 +25,10 @@ class AstraMemoryAPI(ABC):
         内存写入
         
         Args:
-            size: 写入的数据大小（字节）
+            size: 写入的数据大小（字节，对应C++的uint64_t）
             
         Returns:
-            写入延迟时间
+            写入延迟时间（对应C++的uint64_t）
         """
         pass
     
@@ -38,10 +38,10 @@ class AstraMemoryAPI(ABC):
         NPU内存读取
         
         Args:
-            size: 读取的数据大小（字节）
+            size: 读取的数据大小（字节，对应C++的uint64_t）
             
         Returns:
-            读取延迟时间
+            读取延迟时间（对应C++的uint64_t）
         """
         pass
     
@@ -51,10 +51,10 @@ class AstraMemoryAPI(ABC):
         NPU内存写入
         
         Args:
-            size: 写入的数据大小（字节）
+            size: 写入的数据大小（字节，对应C++的uint64_t）
             
         Returns:
-            写入延迟时间
+            写入延迟时间（对应C++的uint64_t）
         """
         pass
     
@@ -64,10 +64,10 @@ class AstraMemoryAPI(ABC):
         NIC内存读取
         
         Args:
-            size: 读取的数据大小（字节）
+            size: 读取的数据大小（字节，对应C++的uint64_t）
             
         Returns:
-            读取延迟时间
+            读取延迟时间（对应C++的uint64_t）
         """
         pass
     
@@ -77,9 +77,9 @@ class AstraMemoryAPI(ABC):
         NIC内存写入
         
         Args:
-            size: 写入的数据大小（字节）
+            size: 写入的数据大小（字节，对应C++的uint64_t）
             
         Returns:
-            写入延迟时间
+            写入延迟时间（对应C++的uint64_t）
         """
         pass

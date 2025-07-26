@@ -16,12 +16,20 @@ from .api import AstraNetworkAPI, AstraMemoryAPI
 from .collective_phase import CollectivePhase
 from .usage_tracker import UsageTracker
 from .send_packet_event_handler_data import SendPacketEventHandlerData
-from .basic_classes import (
-    MemBus, BaseStream, StreamBaseline, DataSet, SimSendCaller, SimRecvCaller,
-    QueueLevels, LogicalTopology, BasicLogicalTopology, OfflineGreedy,
-    CollectiveImplementation, MockNcclComm, MockNcclGroup, SingleFlow, ncclInfo,
-    sim_request, timespec_t
-)
+from .mem_bus import MemBus
+from .base_stream import BaseStream
+from .stream_baseline import StreamBaseline
+from .dataset import DataSet
+from .sim_send_caller import SimSendCaller
+from .sim_recv_caller import SimRecvCaller
+from .queue_levels import QueueLevels
+from .topology.logical_topology import LogicalTopology
+from .topology.basic_logical_topology import BasicLogicalTopology
+from .scheduling.offline_greedy import OfflineGreedy
+from .collective.algorithm import CollectiveImplementation
+from .mock_nccl_comm import MockNcclComm, SingleFlow, ncclInfo, sim_request, timespec_t
+from .AstraNetworkAPI import SimRequest as sim_request, TimeSpec as timespec_t
+from .mock_nccl_group import MockNcclGroup
 
 from ..workload.workload import Workload
 
@@ -274,7 +282,25 @@ class Sys(Callable):
     @staticmethod
     def boostedTick() -> Tick:
         """Get boosted tick - corresponds to Sys::boostedTick"""
-        pass
+        from .common import CLOCK_PERIOD
+        
+        ts = None
+        if len(Sys.all_generators) > 0 and Sys.all_generators[0] is not None:
+            ts = Sys.all_generators[0]
+        else:
+            # Look for first non-null generator
+            for i in range(1, len(Sys.all_generators)):
+                if Sys.all_generators[i] is not None:
+                    ts = Sys.all_generators[i]
+                    break
+        
+        if ts is None:
+            return Sys.offset
+        
+        # Get simulation time from network interface
+        tmp = ts.NI.sim_get_time()
+        tick = tmp.time_val // CLOCK_PERIOD
+        return tick + Sys.offset
 
     def get_tick(self) -> Tick:
         """Get current tick - corresponds to Sys::get_tick"""

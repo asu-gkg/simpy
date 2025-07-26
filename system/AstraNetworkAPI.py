@@ -44,8 +44,8 @@ class NcclFlowTag:
     child_flow_id: int = -1
     sender_node: int = -1
     receiver_node: int = -1
-    flow_size: int = -1
-    p_qps: Optional[Any] = None
+    flow_size: int = -1  # uint64_t in C++
+    pQps: Optional[Any] = None  # void* in C++
     tag_id: int = -1
     tree_flow_list: List[int] = None
     nvls_on: bool = False
@@ -58,18 +58,18 @@ class NcclFlowTag:
 @dataclass
 class SimRequest:
     """模拟请求结构体，对应C++中的sim_request"""
-    src_rank: int = 0
-    dst_rank: int = 0
-    tag: int = 0
-    req_type: ReqType = ReqType.UINT8
-    req_count: int = 0
-    vnet: int = 0
-    layer_num: int = 0
-    flow_tag: NcclFlowTag = None
+    srcRank: int = 0  # uint32_t in C++
+    dstRank: int = 0  # uint32_t in C++
+    tag: int = 0      # uint32_t in C++
+    reqType: ReqType = ReqType.UINT8
+    reqCount: int = 0  # uint64_t in C++
+    vnet: int = 0      # uint32_t in C++
+    layerNum: int = 0  # uint32_t in C++
+    flowTag: NcclFlowTag = None
     
     def __post_init__(self):
-        if self.flow_tag is None:
-            self.flow_tag = NcclFlowTag()
+        if self.flowTag is None:
+            self.flowTag = NcclFlowTag()
 
 
 @dataclass
@@ -84,10 +84,10 @@ class MetaData:
 
 class BackendType(Enum):
     """后端类型枚举，对应C++中的BackendType"""
-    NOT_SPECIFIED = 0
-    GARNET = 1
+    NotSpecified = 0
+    Garnet = 1
     NS3 = 2
-    ANALYTICAL = 3
+    Analytical = 3
 
 
 class AstraNetworkAPI(ABC):
@@ -99,7 +99,7 @@ class AstraNetworkAPI(ABC):
     
     def get_backend_type(self) -> BackendType:
         """获取后端类型"""
-        return BackendType.NOT_SPECIFIED
+        return BackendType.NotSpecified
     
     @abstractmethod
     def sim_comm_size(self, comm: SimComm, size: List[int]) -> int:
@@ -108,7 +108,7 @@ class AstraNetworkAPI(ABC):
         
         Args:
             comm: 通信对象
-            size: 输出参数，存储通信大小
+            size: 输出参数，存储通信大小 (对应C++中的int* size)
             
         Returns:
             0表示成功
@@ -140,17 +140,17 @@ class AstraNetworkAPI(ABC):
         获取时间分辨率
         
         Returns:
-            时间分辨率值
+            时间分辨率值 (对应C++中的double)
         """
         pass
     
     @abstractmethod
-    def sim_init(self, mem: Any) -> int:
+    def sim_init(self, MEM: Any) -> int:
         """
         初始化模拟
         
         Args:
-            mem: 内存API对象
+            MEM: 内存API对象 (对应C++中的AstraMemoryAPI*)
             
         Returns:
             0表示成功
@@ -163,7 +163,7 @@ class AstraNetworkAPI(ABC):
         获取当前模拟时间
         
         Returns:
-            当前时间规格对象
+            当前时间规格对象 (对应C++中的timespec_t)
         """
         pass
     
@@ -175,9 +175,9 @@ class AstraNetworkAPI(ABC):
         调度任务
         
         Args:
-            delta: 延迟时间
-            fun_ptr: 要执行的函数指针
-            fun_arg: 函数参数
+            delta: 延迟时间 (对应C++中的timespec_t)
+            fun_ptr: 要执行的函数指针 (对应C++中的void (*fun_ptr)(void* fun_arg))
+            fun_arg: 函数参数 (对应C++中的void*)
         """
         pass
     
@@ -190,14 +190,14 @@ class AstraNetworkAPI(ABC):
         发送数据
         
         Args:
-            buffer: 发送缓冲区
-            count: 数据数量
-            type_: 数据类型
-            dst: 目标rank
-            tag: 消息标签
-            request: 请求对象
-            msg_handler: 消息处理函数
-            fun_arg: 函数参数
+            buffer: 发送缓冲区 (对应C++中的void*)
+            count: 数据数量 (对应C++中的uint64_t)
+            type_: 数据类型 (对应C++中的int)
+            dst: 目标rank (对应C++中的int)
+            tag: 消息标签 (对应C++中的int)
+            request: 请求对象 (对应C++中的sim_request*)
+            msg_handler: 消息处理函数 (对应C++中的void (*msg_handler)(void* fun_arg))
+            fun_arg: 函数参数 (对应C++中的void*)
             
         Returns:
             0表示成功
@@ -213,37 +213,37 @@ class AstraNetworkAPI(ABC):
         接收数据
         
         Args:
-            buffer: 接收缓冲区
-            count: 数据数量
-            type_: 数据类型
-            src: 源rank
-            tag: 消息标签
-            request: 请求对象
-            msg_handler: 消息处理函数
-            fun_arg: 函数参数
+            buffer: 接收缓冲区 (对应C++中的void*)
+            count: 数据数量 (对应C++中的uint64_t)
+            type_: 数据类型 (对应C++中的int)
+            src: 源rank (对应C++中的int)
+            tag: 消息标签 (对应C++中的int)
+            request: 请求对象 (对应C++中的sim_request*)
+            msg_handler: 消息处理函数 (对应C++中的void (*msg_handler)(void* fun_arg))
+            fun_arg: 函数参数 (对应C++中的void*)
             
         Returns:
             0表示成功
         """
         pass
     
-    def pass_front_end_report(self, astra_sim_data_api: Any) -> None:
+    def pass_front_end_report(self, astraSimDataAPI: Any) -> None:
         """
         传递前端报告
         
         Args:
-            astra_sim_data_api: 前端数据API对象
+            astraSimDataAPI: 前端数据API对象 (对应C++中的AstraSimDataAPI)
         """
         return
     
-    def get_bw_at_dimension(self, dim: int) -> float:
+    def get_BW_at_dimension(self, dim: int) -> float:
         """
         获取指定维度的带宽
         
         Args:
-            dim: 维度索引
+            dim: 维度索引 (对应C++中的int)
             
         Returns:
-            带宽值，-1.0表示无效
+            带宽值，-1.0表示无效 (对应C++中的double)
         """
         return -1.0
