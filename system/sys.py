@@ -26,8 +26,8 @@ from .queue_levels import QueueLevels
 from .topology.logical_topology import LogicalTopology
 from .topology.basic_logical_topology import BasicLogicalTopology
 from .scheduling.offline_greedy import OfflineGreedy
-from .collective.algorithm import CollectiveImplementation
-from .mock_nccl_comm import MockNcclComm, SingleFlow, ncclInfo, sim_request, timespec_t
+from .common import CollectiveImplementation
+from .mock_nccl_comm import MockNcclComm, SingleFlow, ncclInfo
 from .AstraNetworkAPI import SimRequest as sim_request, TimeSpec as timespec_t
 from .mock_nccl_group import MockNcclGroup
 
