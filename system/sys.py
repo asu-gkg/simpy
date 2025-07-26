@@ -32,7 +32,7 @@ from .mock_nccl_comm import MockNcclComm
 from .AstraNetworkAPI import SimRequest as sim_request, TimeSpec as timespec_t
 from .mock_nccl_group import MockNcclGroup
 
-from ..workload.workload import Workload
+from workload.workload import Workload
 
 
 class Sys(Callable):
@@ -54,7 +54,7 @@ class Sys(Callable):
             self.total_chunks_per_dimension: List[float] = [0.0] * len(queues)
             self.total_active_chunks_per_dimension: List[int] = [0] * len(queues)  # uint64_t in C++
             self.queue_id_to_dimension: Dict[int, int] = {}
-            self.usage: List[UsageTracker] = [UsageTracker() for _ in queues]
+            self.usage: List[UsageTracker] = [UsageTracker(2) for _ in queues]
 
             # Build queue_id to dimension mapping
             queue_id = 0

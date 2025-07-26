@@ -107,9 +107,7 @@ class MockNcclLog:
                 self.logfile.write(log_entry)
                 self.logfile.flush()  # 确保立即写入
                 print(f"📝 写入日志: {log_entry.strip()}")
-        else:
-            print(f"⚠️ 日志未写入: level={level.value}, log_level={self._log_level.value}, has_file={self.logfile is not None}")
-            exit(1)
+        # 修复：当日志级别不满足时，应该静默跳过，而不是退出程序
             
     def __del__(self):
         """析构函数 - 关闭日志文件"""

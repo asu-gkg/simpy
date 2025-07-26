@@ -24,6 +24,12 @@ class LayerCommunication:
         """发起前向传播通信 - 精准复现C++版本逻辑"""
         # 添加 MockNcclLog 支持
         nccl_log = MockNcclLog.getInstance()
+        
+        # 添加详细的通信日志
+        nccl_log.writeLog(NcclLogLevel.INFO, 
+                         f"层 {self.layer_num} ({self.id}) 发起前向传播通信 - "
+                         f"类型: {self.fwd_pass_comm_type}, 大小: {self.fwd_pass_comm_size}, "
+                         f"策略: {pref_scheduling}, 屏障: {barrier}")
 
         # 分析模式处理 (对应 #ifdef ANALYTI)
         if hasattr(self.generator, 'analytical_mode') and self.generator.analytical_mode:
@@ -150,6 +156,12 @@ class LayerCommunication:
         # 添加 MockNcclLog 支持
         nccl_log = MockNcclLog.getInstance()
         
+        # 添加详细的通信日志
+        nccl_log.writeLog(NcclLogLevel.INFO, 
+                         f"层 {self.layer_num} ({self.id}) 发起输入梯度通信 - "
+                         f"类型: {self.input_grad_comm_type}, 大小: {self.input_grad_comm_size}, "
+                         f"策略: {pref_scheduling}, 屏障: {barrier}")
+        
         # 分析模式处理
         if hasattr(self.generator, 'analytical_mode') and self.generator.analytical_mode:
             self.ig_barrier = barrier
@@ -271,6 +283,12 @@ class LayerCommunication:
         """发起权重梯度通信 - 精准复现C++版本逻辑"""
         # 添加 MockNcclLog 支持
         nccl_log = MockNcclLog.getInstance()
+        
+        # 添加详细的通信日志
+        nccl_log.writeLog(NcclLogLevel.INFO, 
+                         f"层 {self.layer_num} ({self.id}) 发起权重梯度通信 - "
+                         f"类型: {self.weight_grad_comm_type}, 大小: {self.weight_grad_comm_size}, "
+                         f"策略: {pref_scheduling}, 屏障: {barrier}")
         
         # 分析模式处理
         if hasattr(self.generator, 'analytical_mode') and self.generator.analytical_mode:

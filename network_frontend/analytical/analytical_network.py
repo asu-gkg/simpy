@@ -28,7 +28,7 @@ class AnalyticalNetwork(AstraNetworkAPI):
     
     def get_backend_type(self) -> BackendType:
         """获取后端类型"""
-        return BackendType.ANALYTICAL
+        return BackendType.Analytical
     
     def sim_comm_size(self, comm: SimComm, size: List[int]) -> int:
         """

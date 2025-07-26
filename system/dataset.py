@@ -1,12 +1,14 @@
 # Dataset class - corresponds to DataSet.cc/DataSet.hh in SimAI 
 
-from typing import Optional, Tuple
+from typing import Optional, Tuple, TYPE_CHECKING
 from .callable import Callable, CallData
 from .common import EventType, Tick
 from .stream_stat import StreamStat
 from .int_data import IntData
 from .mock_nccl_log import MockNcclLog, NcclLogLevel
-from .sys import Sys
+
+if TYPE_CHECKING:
+    from .sys import Sys
 
 
 class DataSet(Callable, StreamStat):
@@ -37,6 +39,8 @@ class DataSet(Callable, StreamStat):
         
         # 时间相关属性 - 对应C++版本的时间成员
         self.finish_tick = 0
+        # 延迟导入避免循环依赖
+        from .sys import Sys
         self.creation_tick = Sys.boostedTick()  # 对应C++版本的Sys::boostedTick()
         self.comm_start_tick = 0
         self.total_comm_time = 0
@@ -85,6 +89,8 @@ class DataSet(Callable, StreamStat):
         # 检查是否所有流都完成 - 对应C++版本的finished_streams == total_streams判断
         if self.finished_streams == self.total_streams:
             self.finished = True
+            # 延迟导入避免循环依赖
+            from .sys import Sys
             self.finish_tick = Sys.boostedTick()  # 对应C++版本的Sys::boostedTick()
             
             # 处理通知器 - 对应C++版本的notifier处理逻辑

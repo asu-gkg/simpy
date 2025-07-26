@@ -97,33 +97,53 @@ def main(args) -> int:
     # 计算队列维度
     queues_per_dim = [1] * len(physical_dims[0])
     
+    # 设置日志文件名 - 对应C++版本的日志设置，使用output文件夹
+    from system.mock_nccl_log import MockNcclLog, NcclLogLevel
+    import os
+    from datetime import datetime
+    
+    # 确保output目录存在
+    os.makedirs("./output", exist_ok=True)
+    
+    # 设置日志路径为output文件夹
+    MockNcclLog.LOG_PATH = "./output/"
+    
+    # 创建带时间戳的日志文件名
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    log_filename = f"SimAI_Analytical_{timestamp}.log"
+    MockNcclLog.set_log_name(log_filename)
+    
+    # 写入一个测试日志条目验证日志系统
+    log_instance = MockNcclLog.getInstance()
+    log_instance.writeLog(NcclLogLevel.INFO, f"SimAI Analytical模式启动 - 日志文件: {log_filename}")
+    
     # 创建分析网络
     analytical_network = AnalyticalNetwork(0)
     
     # 创建系统实例
     systems = Sys(
-        analytical_network,
-        None,  # nullptr
-        0,     # 各种参数
-        0,
-        1,
-        physical_dims[0],
-        queues_per_dim,
-        "",
-        WORKLOAD_PATH + param.workload,
-        param.comm_scale,
-        1,
-        1,
-        1,
-        0,
-        RESULT_PATH + param.res,
-        "Analytical_test",
-        True,
-        False,
-        param.net_work_param.gpu_type,
-        param.gpus,
-        param.net_work_param.NVswitchs,
-        param.net_work_param.gpus_per_server
+        NI=analytical_network,                    # AstraNetworkAPI
+        MEM=None,                                 # AstraMemoryAPI (nullptr)
+        id=0,                                     # 系统ID
+        npu_offset=0,                             # NPU偏移
+        num_passes=1,                             # 通过次数
+        physical_dims=physical_dims[0],           # 物理维度
+        queues_per_dim=queues_per_dim,            # 每维队列数
+        my_sys="",                                # 系统文件名
+        my_workload=WORKLOAD_PATH + param.workload,  # 工作负载文件
+        comm_scale=param.comm_scale,              # 通信缩放
+        compute_scale=1.0,                        # 计算缩放
+        injection_scale=1.0,                      # 注入缩放
+        total_stat_rows=1,                        # 总统计行数
+        stat_row=0,                               # 统计行
+        path=RESULT_PATH + param.res,             # 结果路径
+        run_name="Analytical_test",               # 运行名称
+        seprate_log=True,                         # 分离日志
+        rendezvous_enabled=False,                 # 启用会合
+        gpu_type=param.net_work_param.gpu_type,   # GPU类型
+        all_gpus=param.gpus,                      # 所有GPU
+        NVSwitchs=param.net_work_param.NVswitchs, # NVSwitch列表
+        ngpus_per_node=param.net_work_param.gpus_per_server  # 每节点GPU数
     )
     
     # 设置系统属性

@@ -95,6 +95,12 @@ class Workload(Callable):
         if not self.initialized:
             return
             
+        # 添加工作负载初始化完成日志
+        from system.mock_nccl_log import MockNcclLog, NcclLogLevel
+        log = MockNcclLog.getInstance()
+        log.writeLog(NcclLogLevel.INFO, f"工作负载初始化完成 - 类型: {self.run_type}, 层数: {self.size}, 总轮次: {total_pass}")
+        log.writeLog(NcclLogLevel.INFO, f"并行策略: {self.parallelism_policy}, 检查点数: {len(self.checkpoints)}")
+            
         self.total_rows = total_rows
         self.run_name = run_name
         self.registered_for_finished_streams = False
@@ -135,46 +141,56 @@ class Workload(Callable):
         self.detailed.initialize_csv(self.size * self.total_rows + 20, 50)
         self.end_to_end.initialize_csv(self.size * self.total_rows + 20, 50)
     
+    def fire(self):
+        """
+        启动工作负载 - 对应C++函数
+        void Workload::fire()
+        """
+        from system.mock_nccl_log import MockNcclLog, NcclLogLevel
+        log = MockNcclLog.getInstance()
+        log.writeLog(NcclLogLevel.INFO, f"启动工作负载执行 - 当前状态: {self.current_state}, 索引: {self.index}")
+        self.call(EventType.General, None)
+    
     def call(self, event_type: EventType, data: CallData) -> None:
         """
-        处理事件 - 实现Callable接口 - 对应C++函数
-        void Workload::call(EventType event, CallData* data)
+        处理工作负载事件 - 对应C++函数
+        void Workload::call(EventType event, CallData* mdata)
         
         Args:
             event_type: 事件类型
             data: 事件数据
         """
-        if self.counter > 0:
-            if self.generator.id == 0:
-                print("counter > 0")
-            self.generator.try_register_event(
-                self, EventType.Workload_Wait, None, self.counter)
-            return
+        from system.mock_nccl_log import MockNcclLog, NcclLogLevel
+        log = MockNcclLog.getInstance()
+        log.writeLog(NcclLogLevel.DEBUG, f"工作负载接收事件: {event_type}")
         
-        # 根据并行策略选择迭代方法
-        if self.parallelism_policy == ParallelismPolicy.Data:
-            self.iterators.iterate_data_parallel()
-        elif self.parallelism_policy == ParallelismPolicy.Transformer:
-            self.iterators.iterate_hybrid_parallel_transformer()
-        elif (self.parallelism_policy == ParallelismPolicy.DLRM or 
-            self.parallelism_policy == ParallelismPolicy.DLRMEnhanced):
-            self.iterators.iterate_hybrid_parallel_dlrm()
-        elif self.parallelism_policy == ParallelismPolicy.MicroBenchmark:
-            self.iterators.iterate_micro_benchmark()
-        elif self.parallelism_policy == ParallelismPolicy.Model:
-            self.iterators.iterate_model_parallel()
-        elif self.parallelism_policy == ParallelismPolicy.HybridDataModel:
-            self.iterators.iterate_hybrid_parallel_data_model()
-        elif self.parallelism_policy == ParallelismPolicy.HybridModelData:
-            self.iterators.iterate_hybrid_parallel_model_data()
-        elif self.parallelism_policy == ParallelismPolicy.DistributedInference:
-            self.iterators.iterate_distributed_inference()
-        elif self.parallelism_policy == ParallelismPolicy.TransformerFwdInBckwd:
-            self.iterators.iterate_hybrid_parallel_transformer_fwd_in_bckwd()
-        elif self.parallelism_policy == ParallelismPolicy.HybridCustomized:
-            self.iterators.iterate_hybrid_parallel_customized()
+        if event_type == EventType.General:
+            log.writeLog(NcclLogLevel.DEBUG, f"处理通用事件 - 调用迭代器")
+            # 根据并行策略调用相应的迭代方法
+            if self.parallelism_policy == ParallelismPolicy.MicroBenchmark:
+                self.iterators.iterate_micro_benchmark()
+            elif self.parallelism_policy == ParallelismPolicy.Data:
+                self.iterators.iterate_data_parallel()
+            elif self.parallelism_policy == ParallelismPolicy.TransformerFwdInBckwd:
+                self.iterators.iterate_hybrid_parallel_transformer_fwd_in_bckwd()
+            elif self.parallelism_policy == ParallelismPolicy.Transformer:
+                self.iterators.iterate_hybrid_parallel_transformer()
+            elif self.parallelism_policy == ParallelismPolicy.DLRM:
+                self.iterators.iterate_hybrid_parallel_dlrm()
+            elif self.parallelism_policy == ParallelismPolicy.Model:
+                self.iterators.iterate_model_parallel()
+            elif self.parallelism_policy == ParallelismPolicy.HybridDataModel:
+                self.iterators.iterate_hybrid_parallel_data_model()
+            elif self.parallelism_policy == ParallelismPolicy.HybridModelData:
+                self.iterators.iterate_hybrid_parallel_model_data()
+            elif self.parallelism_policy == ParallelismPolicy.DistributedInference:
+                self.iterators.iterate_distributed_inference()
+            elif self.parallelism_policy == ParallelismPolicy.HybridCustomized:
+                self.iterators.iterate_hybrid_parallel_customized()
+            else:
+                log.writeLog(NcclLogLevel.ERROR, f"未支持的并行策略: {self.parallelism_policy}")
         else:
-            raise RuntimeError("No known parallelism!")
+            log.writeLog(NcclLogLevel.WARNING, f"未处理的事件类型: {event_type}")
     
     def check_for_sim_end(self):
         """
@@ -195,13 +211,6 @@ class Workload(Callable):
                     self.reporting.report()
                 self.generator.workload_finished()
                 return
-    
-    def fire(self):
-        """
-        触发工作负载执行 - 对应C++函数
-        void Workload::fire()
-        """
-        self.call(EventType.General, None)
     
     @staticmethod
     def get_layer_numbers(workload_input: str) -> int:

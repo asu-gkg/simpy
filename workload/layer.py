@@ -16,8 +16,9 @@
 
 from typing import List
 
-from system.common import ComType, Tick
+from system.common import ComType, Tick, EventType
 from system.mock_nccl_group import GroupType
+from system.callable import CallData
 from .parallelism_policy import ParallelismPolicy
 
 # 导入各个模块
@@ -52,12 +53,11 @@ class Layer(LayerBase, LayerEvents, LayerCommunication, LayerComputation, LayerR
                 wg_compute_time: Tick, wg_comm_type: ComType,
                 wg_group_type: GroupType, wg_comm_size: int,
                 wg_involved_dimensions: List[bool],
-                wg_update_time: Tick, fwd_update_time: Tick,
-                ig_update_time: Tick, specific_policy: ParallelismPolicy = ParallelismPolicy.None_):
+                wg_update_time: Tick, specific_policy: ParallelismPolicy = ParallelismPolicy.None_):
         """
-        初始化Layer对象
+        初始化Layer对象 - 对应C++版本的Layer构造函数
         
-        调用父类LayerBase的初始化方法
+        注意：与C++版本一样，只接受一个wg_update_time参数，然后用它初始化所有三个update_time字段
         """
         super().__init__(layer_id, layer_num, generator, workload,
                         fwd_pass_compute_time, fwd_pass_comm_type,
@@ -69,10 +69,23 @@ class Layer(LayerBase, LayerEvents, LayerCommunication, LayerComputation, LayerR
                         wg_compute_time, wg_comm_type,
                         wg_group_type, wg_comm_size,
                         wg_involved_dimensions,
-                        wg_update_time, fwd_update_time,
-                        ig_update_time, specific_policy)
+                        wg_update_time, wg_update_time,  # fwd_update_time = wg_update_time
+                        wg_update_time, specific_policy)  # ig_update_time = wg_update_time
     
-    # 所有方法都通过多重继承从各个模块获得
+    def call(self, event_type: EventType, data: CallData) -> None:
+        """
+        处理事件 - 实现Callable接口，对应C++版本的Layer::call()
+        
+        明确实现call方法以解决多重继承中的抽象方法检查问题
+        
+        Args:
+            event_type: 事件类型
+            data: 事件数据
+        """
+        # 调用LayerEvents中的call方法实现
+        LayerEvents.call(self, event_type, data)
+    
+    # 所有其他方法都通过多重继承从各个模块获得
     # 这里不需要重新定义任何方法，因为它们都从父类继承
     
     def __str__(self) -> str:

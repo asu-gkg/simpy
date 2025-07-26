@@ -32,210 +32,202 @@ class WorkloadParser:
         Returns:
             是否初始化成功
         """
-        try:
-            with open(name, 'r') as in_file:
-                # 读取第一行获取并行策略
-                first_line = in_file.readline().strip()
-                tokens = first_line.split()
+        with open(name, 'r') as in_file:
+            # 读取第一行获取并行策略
+            first_line = in_file.readline().strip()
+            tokens = first_line.split()
+            
+            if not tokens:
+                return False
+            
+            workload.parallelism_policy = self.decode_parallelism(tokens[0])
+            workload.run_type = tokens[0]
+            
+            # 解析Transformer相关参数
+            if (workload.parallelism_policy == ParallelismPolicy.TransformerFwdInBckwd or
+                workload.parallelism_policy == ParallelismPolicy.Transformer):
                 
-                if not tokens:
-                    return False
-                
-                workload.parallelism_policy = self.decode_parallelism(tokens[0])
-                workload.run_type = tokens[0]
-                
-                # 解析Transformer相关参数
-                if (workload.parallelism_policy == ParallelismPolicy.TransformerFwdInBckwd or
-                    workload.parallelism_policy == ParallelismPolicy.Transformer):
-                    
-                    # 解析基本参数
-                    for i in range(1, len(tokens), 2):
-                        if i + 1 >= len(tokens):
-                            break
-                        if tokens[i] == "model_parallel_NPU_group:":
-                            workload.model_parallel_npu_group = int(tokens[i + 1])
-                        elif tokens[i] == "ep:":
-                            workload.expert_parallel_npu_group = int(tokens[i + 1])
-                        elif tokens[i] == "pp:":
-                            workload.pipeline_model_parallelism = int(tokens[i + 1])
-                        elif tokens[i] == "vpp:":
-                            workload.vpp = int(tokens[i + 1])
-                        elif tokens[i] == "ga:":
-                            workload.ga = int(tokens[i + 1])
-                        elif tokens[i] == "all_gpus:":
-                            workload.all_gpus = int(tokens[i + 1])
-                        elif tokens[i] == "pp_comm" or tokens[i] == "pp_comm:":
-                            workload.pp_commsize = int(tokens[i + 1])
-                    
-                    # 解析检查点信息（仅对TransformerFwdInBckwd）
-                    if workload.parallelism_policy == ParallelismPolicy.TransformerFwdInBckwd:
-                        if workload.generator.id == 0:
-                            print("checkpoints layers are: ", end="")
-                        
-                        for i in range(1, len(tokens), 2):
-                            if i + 1 >= len(tokens):
-                                break
-                            if tokens[i] == "checkpoints:":
-                                account = int(tokens[i + 1])
-                                j = 2
-                                while account > 0:
-                                    if i + j < len(tokens):
-                                        layer = int(tokens[i + j])
-                                        workload.checkpoints[layer] = True
-                                        if workload.generator.id == 0:
-                                            print(f"{layer}, ", end="")
-                                    j += 1
-                                    account -= 1
-                            elif tokens[i] == "checkpoint_initiates:":
-                                if workload.generator.id == 0:
-                                    print("\nlayers initiating fwd_in_bckwd are: ", end="")
-                                account = int(tokens[i + 1])
-                                j = 2
-                                while account > 0:
-                                    if i + j < len(tokens):
-                                        layer = int(tokens[i + j])
-                                        workload.need_checkpoint_initiation[layer] = True
-                                        if workload.generator.id == 0:
-                                            print(f"{layer}, ", end="")
-                                    j += 1
-                                    account -= 1
-                                if workload.generator.id == 0:
-                                    print()
-                
-                # 解析DLRM相关参数
-                elif (workload.parallelism_policy == ParallelismPolicy.DLRM or
-                    workload.parallelism_policy == ParallelismPolicy.DLRMEnhanced):
-                    for i in range(1, len(tokens), 2):
-                        if i + 1 >= len(tokens):
-                            break
-                        if tokens[i] == "DLRM_LAST_BOTTOM_LAYER:":
-                            workload.dlrm_last_bottom_layer = int(tokens[i + 1])
-                    
-                    if workload.generator.id == 0:
-                        print(f"****************** info: DLRM workload last bottom layer is: {workload.dlrm_last_bottom_layer}")
-                
-                elif workload.parallelism_policy == ParallelismPolicy.None_:
-                    print("无法解码工作负载并行化策略")
-                    return False
-                
-                # 解析pp_comm参数
+                # 解析基本参数
                 for i in range(1, len(tokens), 2):
                     if i + 1 >= len(tokens):
                         break
-                    if tokens[i] == "pp_comm" or tokens[i] == "pp_comm:":
+                    if tokens[i] == "model_parallel_NPU_group:":
+                        workload.model_parallel_npu_group = int(tokens[i + 1])
+                    elif tokens[i] == "ep:":
+                        workload.expert_parallel_npu_group = int(tokens[i + 1])
+                    elif tokens[i] == "pp:":
+                        workload.pipeline_model_parallelism = int(tokens[i + 1])
+                    elif tokens[i] == "vpp:":
+                        workload.vpp = int(tokens[i + 1])
+                    elif tokens[i] == "ga:":
+                        workload.ga = int(tokens[i + 1])
+                    elif tokens[i] == "all_gpus:":
+                        workload.all_gpus = int(tokens[i + 1])
+                    elif tokens[i] == "pp_comm" or tokens[i] == "pp_comm:":
                         workload.pp_commsize = int(tokens[i + 1])
                 
-                if workload.generator.id == 0:
-                    print(f"pp_commize: {workload.pp_commsize}")
-                
-                # 验证参数
-                if workload.generator.id == 0:
-                    if (workload.model_parallel_npu_group == 0 or workload.expert_parallel_npu_group == 0 or 
-                        workload.pipeline_model_parallelism == 0 or workload.vpp == 0 or workload.ga == 0 or 
-                        workload.all_gpus == 0 or 
-                        (workload.pipeline_model_parallelism != 1 and workload.pp_commsize == 0) or
-                        (workload.pipeline_model_parallelism == 1 and workload.pp_commsize != 0)):
-                        print("*****Warning: Input workload format mismatch. It may cause simulation error. Please use the latest AICB to generate.*****")
-                
-                # 读取层数
-                second_line = in_file.readline().strip()
-                lines = int(second_line)
-                workload.size = lines
-                
-                # 获取涉及维度
-                general_involved_dimensions = self.decode_involved_dimensions(
-                    workload.parallelism_policy, workload.model_parallel_npu_group, workload.generator)
-                
-                # 创建层
-                for i in range(lines):
-                    # 读取层信息
-                    layer_data = in_file.readline().strip().split()
-                    if len(layer_data) < 13:
-                        continue
-                    
-                    layer_id = layer_data[0]
-                    depen = int(layer_data[1])
-                    fp_compute_time = int(layer_data[2])
-                    fp_comm_type_s = layer_data[3]
-                    fp_comm_size = int(layer_data[4])
-                    ig_compute_time = int(layer_data[5])
-                    ig_comm_type_s = layer_data[6]
-                    ig_comm_size = int(layer_data[7])
-                    wg_compute_time = int(layer_data[8])
-                    wg_comm_type_s = layer_data[9]
-                    wg_comm_size = int(layer_data[10])
-                    wg_update_time = int(layer_data[11])
-                    
-                    # 解析通信类型
-                    fp_comm_type, fp_group_type = self._parse_comm_type(fp_comm_type_s)
-                    ig_comm_type, ig_group_type = self._parse_comm_type(ig_comm_type_s)
-                    wg_comm_type, wg_group_type = self._parse_comm_type(wg_comm_type_s)
-                    
-                    # 确定特定并行策略
-                    specific_policy = ParallelismPolicy.None_
-                    selected_involved_dimensions = general_involved_dimensions
-                    
-                    # 处理自定义混合并行
-                    if workload.parallelism_policy == ParallelismPolicy.HybridCustomized:
-                        if len(layer_data) > 12:
-                            specific_parallelism = layer_data[12]
-                            specific_policy = self.decode_parallelism(specific_parallelism)
-                    
-                    # 处理DLRM特殊情况
-                    if ((workload.parallelism_policy == ParallelismPolicy.DLRM or
-                        workload.parallelism_policy == ParallelismPolicy.DLRMEnhanced) and i == 0):
-                        specific_policy = ParallelismPolicy.All
-                    
-                    if specific_policy != ParallelismPolicy.None_:
-                        selected_involved_dimensions = self.decode_involved_dimensions(
-                            specific_policy, workload.model_parallel_npu_group, workload.generator)
-                    
-                    # 创建层对象
-                    layer = Layer(
-                        layer_id, i, workload.generator, workload,
-                        fp_compute_time * workload.generator.compute_scale,
-                        fp_comm_type, fp_group_type,
-                        fp_comm_size * workload.generator.comm_scale,
-                        selected_involved_dimensions["fwd"],
-                        ig_compute_time * workload.generator.compute_scale,
-                        ig_comm_type, ig_group_type,
-                        ig_comm_size * workload.generator.comm_scale,
-                        selected_involved_dimensions["ig"],
-                        wg_compute_time * workload.generator.compute_scale,
-                        wg_comm_type, wg_group_type,
-                        wg_comm_size * workload.generator.comm_scale,
-                        selected_involved_dimensions["wg"],
-                        wg_update_time,
-                        specific_policy
-                    )
-                    
-                    # 设置检查点属性
-                    if i in workload.checkpoints:
-                        layer.is_checkpoint = True
-                    if i in workload.need_checkpoint_initiation:
-                        layer.needs_fwd_in_bckwd_initiation = True
-                    
-                    workload.layers.append(layer)
-                    
+                # 解析检查点信息（仅对TransformerFwdInBckwd）
+                if workload.parallelism_policy == ParallelismPolicy.TransformerFwdInBckwd:
                     if workload.generator.id == 0:
-                        print(f"id: {layer_id}, depen: {depen}, wg_comp_time: {wg_compute_time}")
+                        print("checkpoints layers are: ", end="")
+                    
+                    for i in range(1, len(tokens), 2):
+                        if i + 1 >= len(tokens):
+                            break
+                        if tokens[i] == "checkpoints:":
+                            account = int(tokens[i + 1])
+                            j = 2
+                            while account > 0:
+                                if i + j < len(tokens):
+                                    layer = int(tokens[i + j])
+                                    workload.checkpoints[layer] = True
+                                    if workload.generator.id == 0:
+                                        print(f"{layer}, ", end="")
+                                j += 1
+                                account -= 1
+                        elif tokens[i] == "checkpoint_initiates:":
+                            if workload.generator.id == 0:
+                                print("\nlayers initiating fwd_in_bckwd are: ", end="")
+                            account = int(tokens[i + 1])
+                            j = 2
+                            while account > 0:
+                                if i + j < len(tokens):
+                                    layer = int(tokens[i + j])
+                                    workload.need_checkpoint_initiation[layer] = True
+                                    if workload.generator.id == 0:
+                                        print(f"{layer}, ", end="")
+                                j += 1
+                                account -= 1
+                            if workload.generator.id == 0:
+                                print()
+            
+            # 解析DLRM相关参数
+            elif (workload.parallelism_policy == ParallelismPolicy.DLRM or
+                workload.parallelism_policy == ParallelismPolicy.DLRMEnhanced):
+                for i in range(1, len(tokens), 2):
+                    if i + 1 >= len(tokens):
+                        break
+                    if tokens[i] == "DLRM_LAST_BOTTOM_LAYER:":
+                        workload.dlrm_last_bottom_layer = int(tokens[i + 1])
                 
                 if workload.generator.id == 0:
-                    print(f"type: {workload.run_type}, num passes: {workload.total_pass}, "
-                            f"lines: {lines}, compute scale: {workload.generator.compute_scale}, "
-                            f"comm scale: {workload.generator.comm_scale}")
+                    print(f"****************** info: DLRM workload last bottom layer is: {workload.dlrm_last_bottom_layer}")
+            
+            elif workload.parallelism_policy == ParallelismPolicy.None_:
+                print("无法解码工作负载并行化策略")
+                return False
+            
+            # 解析pp_comm参数
+            for i in range(1, len(tokens), 2):
+                if i + 1 >= len(tokens):
+                    break
+                if tokens[i] == "pp_comm" or tokens[i] == "pp_comm:":
+                    workload.pp_commsize = int(tokens[i + 1])
+            
+            if workload.generator.id == 0:
+                print(f"pp_commize: {workload.pp_commsize}")
+            
+            # 验证参数
+            if workload.generator.id == 0:
+                if (workload.model_parallel_npu_group == 0 or workload.expert_parallel_npu_group == 0 or 
+                    workload.pipeline_model_parallelism == 0 or workload.vpp == 0 or workload.ga == 0 or 
+                    workload.all_gpus == 0 or 
+                    (workload.pipeline_model_parallelism != 1 and workload.pp_commsize == 0) or
+                    (workload.pipeline_model_parallelism == 1 and workload.pp_commsize != 0)):
+                    print("*****Warning: Input workload format mismatch. It may cause simulation error. Please use the latest AICB to generate.*****")
+            
+            # 读取层数
+            second_line = in_file.readline().strip()
+            lines = int(second_line)
+            workload.size = lines
+            
+            # 获取涉及维度
+            general_involved_dimensions = self.decode_involved_dimensions(
+                workload.parallelism_policy, workload.model_parallel_npu_group, workload.generator)
+            
+            # 创建层
+            for i in range(lines):
+                # 读取层信息
+                layer_data = in_file.readline().strip().split()
+                if len(layer_data) < 12:  # 修复：实际只需要12个字段
+                    print(f"this layer data is not valid: {layer_data}")
+                    sys.exit(1)
                 
-                return True
+                layer_id = layer_data[0]
+                depen = int(layer_data[1])
+                fp_compute_time = int(layer_data[2])
+                fp_comm_type_s = layer_data[3]
+                fp_comm_size = int(layer_data[4])
+                ig_compute_time = int(layer_data[5])
+                ig_comm_type_s = layer_data[6]
+                ig_comm_size = int(layer_data[7])
+                wg_compute_time = int(layer_data[8])
+                wg_comm_type_s = layer_data[9]
+                wg_comm_size = int(layer_data[10])
+                wg_update_time = int(layer_data[11])
                 
-        except FileNotFoundError:
-            print(f"无法打开文件: {name}")
-            print("######### Exiting because unable to open the workload input file #########")
-            print("This error is fatal. Please check your path and filename.")
-            sys.exit(1)
-        except Exception as e:
-            print(f"初始化工作负载时出错: {e}")
-            return False
-    
+                # 解析通信类型
+                fp_comm_type, fp_group_type = self._parse_comm_type(fp_comm_type_s)
+                ig_comm_type, ig_group_type = self._parse_comm_type(ig_comm_type_s)
+                wg_comm_type, wg_group_type = self._parse_comm_type(wg_comm_type_s)
+                
+                # 确定特定并行策略
+                specific_policy = ParallelismPolicy.None_
+                selected_involved_dimensions = general_involved_dimensions
+                
+                # 处理自定义混合并行
+                if workload.parallelism_policy == ParallelismPolicy.HybridCustomized:
+                    if len(layer_data) > 12:
+                        specific_parallelism = layer_data[12]
+                        specific_policy = self.decode_parallelism(specific_parallelism)
+                
+                # 处理DLRM特殊情况
+                if ((workload.parallelism_policy == ParallelismPolicy.DLRM or
+                    workload.parallelism_policy == ParallelismPolicy.DLRMEnhanced) and i == 0):
+                    specific_policy = ParallelismPolicy.All
+                
+                if specific_policy != ParallelismPolicy.None_:
+                    selected_involved_dimensions = self.decode_involved_dimensions(
+                        specific_policy, workload.model_parallel_npu_group, workload.generator)
+                
+                # 创建层对象
+                layer = Layer(
+                    layer_id, i, workload.generator, workload,
+                    fp_compute_time * workload.generator.compute_scale,
+                    fp_comm_type, fp_group_type,
+                    fp_comm_size * workload.generator.comm_scale,
+                    selected_involved_dimensions["fwd"],
+                    ig_compute_time * workload.generator.compute_scale,
+                    ig_comm_type, ig_group_type,
+                    ig_comm_size * workload.generator.comm_scale,
+                    selected_involved_dimensions["ig"],
+                    wg_compute_time * workload.generator.compute_scale,
+                    wg_comm_type, wg_group_type,
+                    wg_comm_size * workload.generator.comm_scale,
+                    selected_involved_dimensions["wg"],
+                    wg_update_time,  # 对应C++版本的weight_grad_update_time
+                    specific_policy
+                )
+                
+                # 设置检查点属性
+                if i in workload.checkpoints:
+                    layer.is_checkpoint = True
+                if i in workload.need_checkpoint_initiation:
+                    layer.needs_fwd_in_bckwd_initiation = True
+                
+                workload.layers.append(layer)
+                
+                if workload.generator.id == 0:
+                    print(f"id: {layer_id}, depen: {depen}, wg_comp_time: {wg_compute_time}")
+            
+            if workload.generator.id == 0:
+                print(f"type: {workload.run_type}, num passes: {workload.total_pass}, "
+                        f"lines: {lines}, compute scale: {workload.generator.compute_scale}, "
+                        f"comm scale: {workload.generator.comm_scale}")
+            
+            return True
+                
+
     def decode_parallelism(self, parallelism: str) -> ParallelismPolicy:
         """
         解码并行策略字符串 - 对应C++函数
