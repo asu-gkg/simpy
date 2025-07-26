@@ -5,11 +5,11 @@
 # - _get_value() -> Layer::cal_ratio() 中的辅助逻辑
 # - compute_time() -> Layer::compute_time()
 # - _get_collective_type_string() -> Layer::compute_time() 中的辅助逻辑
-# - _cal_busbw() -> Layer::compute_time() 中的辅助逻辑
 # - compute_busbw() -> Layer::compute_busbw()
 
 from system.common import ComType, Tick
 from system.mock_nccl_group import GroupType
+from system.cal_bus_bw import cal_busbw, GPUType
 import math
 
 
@@ -162,10 +162,60 @@ class LayerComputation:
         # 确定通信类型字符串
         coll_type = self._get_collective_type_string(comtype)
 
-        # 计算带宽结果
-        result = self._cal_busbw(gpu_type, nvlink_bw, bw_per_nic, nics_per_server,
-                                group_type.value, coll_type, tp_size, nranks, gpus_per_server,
-                                ep_size, nic_type)
+        # 计算带宽结果 - 使用新的cal_bus_bw模块
+        # 将GPU类型字符串转换为GPUType枚举
+        try:
+            gpu_type_enum = GPUType(gpu_type.upper())
+        except ValueError:
+            gpu_type_enum = GPUType.A100  # 默认值
+        
+        # 根据group_type调用相应的计算逻辑
+        if group_type == GroupType.TP:
+            if tp_size <= gpus_per_server:
+                bus_result = cal_busbw(gpu_type_enum, nvlink_bw, bw_per_nic, 
+                                     nics_per_server, 1, coll_type, tp_size, nic_type)
+            else:
+                node_count = tp_size // gpus_per_server
+                bus_result = cal_busbw(gpu_type_enum, nvlink_bw, bw_per_nic,
+                                     nics_per_server, node_count, coll_type, gpus_per_server, nic_type)
+        elif group_type == GroupType.EP and nranks > 1:
+            if tp_size * nranks <= gpus_per_server:
+                temp_gpus_per_server = gpus_per_server // tp_size
+                bus_result = cal_busbw(gpu_type_enum, nvlink_bw, bw_per_nic,
+                                     nics_per_server, 1, coll_type, temp_gpus_per_server, nic_type)
+            else:
+                node_count = (tp_size * nranks) // gpus_per_server
+                temp_gpus_per_server = gpus_per_server // tp_size if gpus_per_server // tp_size > 1 else 1
+                temp_nics_per_server = nics_per_server // gpus_per_server if tp_size > gpus_per_server else nics_per_server // tp_size
+                bus_result = cal_busbw(gpu_type_enum, nvlink_bw, bw_per_nic,
+                                     temp_nics_per_server, node_count, coll_type, temp_gpus_per_server, nic_type)
+        elif group_type == GroupType.DP and nranks > 1:
+            if tp_size <= gpus_per_server:
+                temp_gpus_per_server = gpus_per_server // tp_size
+                temp_nics_per_server = nics_per_server // tp_size
+                bus_result = cal_busbw(gpu_type_enum, nvlink_bw, bw_per_nic,
+                                     temp_nics_per_server, nranks, coll_type, temp_gpus_per_server, nic_type)
+            else:
+                temp_nics_per_server = nics_per_server // gpus_per_server
+                bus_result = cal_busbw(gpu_type_enum, nvlink_bw, bw_per_nic,
+                                     temp_nics_per_server, nranks, coll_type, 1, nic_type)
+        elif group_type == GroupType.DP_EP and nranks > 1:
+            if tp_size * ep_size <= gpus_per_server:
+                temp_nics_per_server = nics_per_server // (tp_size * ep_size)
+                temp_gpus_per_server = gpus_per_server // (tp_size * ep_size)
+                bus_result = cal_busbw(gpu_type_enum, nvlink_bw, bw_per_nic,
+                                     temp_nics_per_server, nranks, coll_type, temp_gpus_per_server, nic_type)
+            else:
+                temp_nics_per_server = nics_per_server // gpus_per_server
+                bus_result = cal_busbw(gpu_type_enum, nvlink_bw, bw_per_nic,
+                                     temp_nics_per_server, nranks, coll_type, 1, nic_type)
+        else:
+            # 默认情况
+            bus_result = cal_busbw(gpu_type_enum, nvlink_bw, bw_per_nic,
+                                 nics_per_server, 1, coll_type, gpus_per_server, nic_type)
+        
+        # 将结果转换为兼容格式
+        result = {'busbw': bus_result.busbw, 'is_nvlink': bus_result.is_nvlink}
 
         # 计算带宽比率
         bw_ratio = self.cal_ratio(data_size, nranks, tp_size, gpus_per_server,
@@ -198,56 +248,7 @@ class LayerComputation:
         else:
             return "unknown"
 
-    def _cal_busbw(self, gpu_type: str, nvlink_bw: float, bw_per_nic: float,
-                nics_per_server: int, group_type: str, coll_type: str,
-                tp_size: int, nranks: int, gpus_per_server: int,
-                ep_size: int, nic_type: str) -> dict:
-        """计算总线带宽 - 精准复现C++版本的逻辑"""
-        result = {'busbw': 100.0, 'is_nvlink': False}
 
-        if group_type == "TP":
-            # TP 通信内部
-            if tp_size <= gpus_per_server:
-                result['busbw'] = nvlink_bw
-                result['is_nvlink'] = True
-            else:
-                node_count = tp_size // gpus_per_server
-                result['busbw'] = bw_per_nic * nics_per_server / node_count
-                result['is_nvlink'] = False
-
-        elif group_type == "EP" and nranks > 1:
-            if tp_size * nranks <= gpus_per_server:
-                temp_gpus_per_server = gpus_per_server // tp_size
-                result['busbw'] = nvlink_bw
-                result['is_nvlink'] = True
-            else:
-                node_count = (tp_size * nranks) // gpus_per_server
-                temp_gpus_per_server = gpus_per_server // tp_size if gpus_per_server // tp_size > 1 else 1
-                temp_nics_per_server = nics_per_server // gpus_per_server if tp_size > gpus_per_server else nics_per_server // tp_size
-                result['busbw'] = bw_per_nic * temp_nics_per_server / node_count
-                result['is_nvlink'] = False
-
-        elif group_type == "DP" and nranks > 1:
-            if tp_size <= gpus_per_server:
-                temp_gpus_per_server = gpus_per_server // tp_size
-                temp_nics_per_server = nics_per_server // tp_size
-                result['busbw'] = bw_per_nic * temp_nics_per_server / nranks
-            else:
-                temp_nics_per_server = nics_per_server // gpus_per_server
-                result['busbw'] = bw_per_nic * temp_nics_per_server / nranks
-            result['is_nvlink'] = False
-
-        elif group_type == "DP_EP" and nranks > 1:
-            if tp_size * ep_size <= gpus_per_server:
-                temp_nics_per_server = nics_per_server // (tp_size * ep_size)
-                temp_gpus_per_server = gpus_per_server // (tp_size * ep_size)
-                result['busbw'] = bw_per_nic * temp_nics_per_server / nranks
-            else:
-                temp_nics_per_server = nics_per_server // gpus_per_server
-                result['busbw'] = bw_per_nic * temp_nics_per_server / nranks
-            result['is_nvlink'] = False
-
-        return result
 
     def compute_busbw(self, comtype: ComType, nranks: int, data_size: int, total_comm: Tick) -> tuple:
         """计算总线带宽 - 精准复现C++版本的compute_busbw方法"""
