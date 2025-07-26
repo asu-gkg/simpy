@@ -5,7 +5,6 @@
 # - _handle_weight_grad_comm_finished() -> Layer::call() 中处理 Wight_Grad_Comm_Finished_After_Delay 事件的部分
 # - _handle_input_grad_comm_finished() -> Layer::call() 中处理 Input_Grad_Comm_Finished_After_Delay 事件的部分  
 # - _handle_fwd_comm_finished() -> Layer::call() 中处理 Fwd_Comm_Finished_After_Delay 事件的部分
-# - update_stream_stats() -> Layer::update_stream_stats()
 
 from system.callable import CallData
 from system.common import EventType, CollectiveBarrier
@@ -57,6 +56,13 @@ class LayerEvents:
     
     def _handle_weight_grad_comm_finished(self, data_id: int):
         """处理权重梯度通信完成事件"""
+        # PHY_MTP模式下的简化处理 - 对应C++版本的#ifdef PHY_MTP分支
+        if hasattr(self.generator, 'phy_mtp_mode') and self.generator.phy_mtp_mode:
+            self.workload.call(EventType.General, None)
+            self.generator.increase_finished_streams(1)
+            return
+        
+        # 非PHY_MTP模式下的完整处理 - 对应C++版本的#ifndef PHY_MTP分支
         if self.generator.id == 0:
             print(f"***** info: weight gradient collective for layer: {self.id} is finished************")
         
@@ -68,7 +74,8 @@ class LayerEvents:
             if (len(self.weight_grad_datasets) == 1 and 
                 self.wg_barrier == CollectiveBarrier.Blocking):
                 self.total_waiting_for_wg_comm += dataset.finish_tick - dataset.creation_tick
-                self.update_stream_stats(dataset)
+                # 调用从StreamStat继承的update_stream_stats方法
+                super().update_stream_stats(dataset)
                 dataset_streams = dataset.total_streams
                 del self.weight_grad_datasets[data_id]
                 self.workload.call(EventType.General, None)
@@ -77,20 +84,29 @@ class LayerEvents:
             elif self.started_waiting_for_weight_grad:
                 self.total_waiting_for_wg_comm += dataset.finish_tick - self.started_waiting_for_weight_grad[0]
                 self.started_waiting_for_weight_grad.pop(0)
-                self.update_stream_stats(dataset)
+                # 调用从StreamStat继承的update_stream_stats方法
+                super().update_stream_stats(dataset)
                 dataset_streams = dataset.total_streams
                 del self.weight_grad_datasets[data_id]
                 self.workload.call(EventType.General, None)
                 self.generator.increase_finished_streams(dataset_streams)
                 return
             
-            self.update_stream_stats(dataset)
+            # 调用从StreamStat继承的update_stream_stats方法
+            super().update_stream_stats(dataset)
             dataset_streams = dataset.total_streams
             del self.weight_grad_datasets[data_id]
             self.generator.increase_finished_streams(dataset_streams)
     
     def _handle_input_grad_comm_finished(self, data_id: int):
         """处理输入梯度通信完成事件"""
+        # PHY_MTP模式下的简化处理 - 对应C++版本的#ifdef PHY_MTP分支
+        if hasattr(self.generator, 'phy_mtp_mode') and self.generator.phy_mtp_mode:
+            self.workload.call(EventType.General, None)
+            self.generator.increase_finished_streams(1)
+            return
+        
+        # 非PHY_MTP模式下的完整处理 - 对应C++版本的#ifndef PHY_MTP分支
         if self.generator.id == 0:
             print(f"***** info: input gradient collective for layer: {self.id} is finished************")
         
@@ -102,7 +118,8 @@ class LayerEvents:
             if (len(self.input_grad_datasets) == 1 and 
                 self.ig_barrier == CollectiveBarrier.Blocking):
                 self.total_waiting_for_ig_comm += dataset.finish_tick - dataset.creation_tick
-                self.update_stream_stats(dataset)
+                # 调用从StreamStat继承的update_stream_stats方法
+                super().update_stream_stats(dataset)
                 dataset_streams = dataset.total_streams
                 del self.input_grad_datasets[data_id]
                 self.workload.call(EventType.General, None)
@@ -111,20 +128,29 @@ class LayerEvents:
             elif self.started_waiting_for_input_grad:
                 self.total_waiting_for_ig_comm += dataset.finish_tick - self.started_waiting_for_input_grad[0]
                 self.started_waiting_for_input_grad.pop(0)
-                self.update_stream_stats(dataset)
+                # 调用从StreamStat继承的update_stream_stats方法
+                super().update_stream_stats(dataset)
                 dataset_streams = dataset.total_streams
                 del self.input_grad_datasets[data_id]
                 self.workload.call(EventType.General, None)
                 self.generator.increase_finished_streams(dataset_streams)
                 return
             
-            self.update_stream_stats(dataset)
+            # 调用从StreamStat继承的update_stream_stats方法
+            super().update_stream_stats(dataset)
             dataset_streams = dataset.total_streams
             del self.input_grad_datasets[data_id]
             self.generator.increase_finished_streams(dataset_streams)
     
     def _handle_fwd_comm_finished(self, data_id: int):
         """处理前向传播通信完成事件"""
+        # PHY_MTP模式下的简化处理 - 对应C++版本的#ifdef PHY_MTP分支
+        if hasattr(self.generator, 'phy_mtp_mode') and self.generator.phy_mtp_mode:
+            self.workload.call(EventType.General, None)
+            self.generator.increase_finished_streams(1)
+            return
+        
+        # 非PHY_MTP模式下的完整处理 - 对应C++版本的#ifndef PHY_MTP分支
         if self.generator.id == 0:
             print(f"***** info: forward pass collective for layer: {self.id} is finished************")
         
@@ -136,7 +162,8 @@ class LayerEvents:
             if (len(self.fwd_pass_datasets) == 1 and 
                 self.fwd_barrier == CollectiveBarrier.Blocking):
                 self.total_waiting_for_fwd_comm += dataset.finish_tick - dataset.creation_tick
-                self.update_stream_stats(dataset)
+                # 调用从StreamStat继承的update_stream_stats方法
+                super().update_stream_stats(dataset)
                 dataset_streams = dataset.total_streams
                 del self.fwd_pass_datasets[data_id]
                 self.workload.call(EventType.General, None)
@@ -145,29 +172,18 @@ class LayerEvents:
             elif self.started_waiting_for_fwd_pass:
                 self.total_waiting_for_fwd_comm += dataset.finish_tick - self.started_waiting_for_fwd_pass[0]
                 self.started_waiting_for_fwd_pass.pop(0)
-                self.update_stream_stats(dataset)
+                # 调用从StreamStat继承的update_stream_stats方法
+                super().update_stream_stats(dataset)
                 dataset_streams = dataset.total_streams
                 del self.fwd_pass_datasets[data_id]
                 self.workload.call(EventType.General, None)
                 self.generator.increase_finished_streams(dataset_streams)
                 return
             
-            self.update_stream_stats(dataset)
+            # 调用从StreamStat继承的update_stream_stats方法
+            super().update_stream_stats(dataset)
             dataset_streams = dataset.total_streams
             del self.fwd_pass_datasets[data_id]
             self.generator.increase_finished_streams(dataset_streams)
     
-    def update_stream_stats(self, dataset: DataSet):
-        """更新流统计信息 - 对应C++版本的update_stream_stats"""
-        # 调用父类的update_stream_stats方法
-        if hasattr(dataset, 'queuing_delay'):
-            # 扩展queuing_delay列表以匹配dataset的大小
-            while len(self.queuing_delay) < len(dataset.queuing_delay):
-                self.queuing_delay.append(0)
-            
-            # 累加延迟数据
-            for i, delay in enumerate(dataset.queuing_delay):
-                if i < len(self.queuing_delay):
-                    self.queuing_delay[i] += delay
-            
-            self.stream_stat_counter += 1 
+ 

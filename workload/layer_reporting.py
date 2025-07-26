@@ -10,6 +10,8 @@ from typing import List
 from system.api import LayerData
 from system.mock_nccl_group import GroupType
 from system.common import ComType
+from system.param_parser import UserParam, ModeType
+from system.common import GBps as GBPS
 
 
 class LayerReporting:
@@ -48,22 +50,31 @@ class LayerReporting:
         weight_grad_group_size = self._calculate_group_size(self.weight_grad_group_type, tp_size, dp_size, ep_size)
         input_grad_group_size = self._calculate_group_size(self.input_grad_group_type, tp_size, dp_size, ep_size)
         
+        # 获取用户参数实例
+        param = UserParam.getInstance()
+        
         # 气泡时间计算（对应C++版本的embedding_layer检查）
         if self.id != "embedding_layer":
             pre_bubble_time += ((self.total_waiting_for_fwd_comm + self.total_forward_pass_compute + 
                                 self.total_weight_grad_compute + self.total_input_grad_compute + 
                                 self.total_waiting_for_ig_comm) / self.generator.freq)
         
-        # DP通信时间计算
+        # DP通信时间计算（精准复现C++版本的重叠比率处理）
         if self.weight_grad_group_type == GroupType.DP_EP:
+            self.total_waiting_for_wg_comm *= (1 - param.net_work_param.dp_overlap_ratio)
             dp_ep_comm += (self.total_waiting_for_wg_comm / self.generator.freq)
         else:
+            self.total_waiting_for_wg_comm *= (1 - param.net_work_param.dp_overlap_ratio)
             dp_comm += (self.total_waiting_for_wg_comm / self.generator.freq)
         
-        # TP/EP通信时间计算
+        # TP/EP通信时间计算（精准复现C++版本的重叠比率处理）
         if self.fwd_pass_group_type == GroupType.EP:
+            self.total_waiting_for_fwd_comm *= (1 - param.net_work_param.ep_overlap_ratio)
+            self.total_waiting_for_ig_comm *= (1 - param.net_work_param.ep_overlap_ratio)
             expose_ep_comm += ((self.total_waiting_for_fwd_comm + self.total_waiting_for_ig_comm) / self.generator.freq)
         else:
+            self.total_waiting_for_fwd_comm *= (1 - param.net_work_param.tp_overlap_ratio)
+            self.total_waiting_for_ig_comm *= (1 - param.net_work_param.tp_overlap_ratio)
             expose_tp_comm += ((self.total_waiting_for_fwd_comm + self.total_waiting_for_ig_comm) / self.generator.freq)
         
         # 计算总时间（转换为秒）
@@ -108,6 +119,77 @@ class LayerReporting:
         for i, delay in enumerate(self.net_message_latency):
             layer_data.avg_network_message_delay.append((i + 1, delay / self.generator.freq))
         
+        # 分离日志输出 - 精准复现C++版本
+        if separate_log:
+            print("*******************")
+            print(f"Layer id: {self.id}")
+            print(f"Total collectives issued for this layer: {self.collective_counter}")
+            print(f"************************* Workload stats ************************* {self.id}")
+            
+            # CSV 头部 - 精准复现C++版本格式
+            if stat_row == 0 and layer_num == 0:
+                header = f"layer_name,{run_name},fwd compute,wg compute,ig compute,fwd exposed comm,wg exposed comm,ig exposed comm,fwd total comm,algbw,busbw,wg total comm,algbw,busbw,ig total comm,algbw,busbw,workload finished at"
+                end_to_end.write_line(header)
+            
+            # 数据行
+            data = ""
+            if stat_row == 0:
+                data += self.id
+            
+            data += f",{run_name}"
+            
+            print(f"id: {self.id} ,Total cycles spent on fwd pass compute: {self.total_forward_pass_compute}")
+            data += f",{layer_fwd_time:.6f}"
+            
+            print(f"id: {self.id} ,Total cycles spent on weight grad compute: {self.total_weight_grad_compute}")
+            data += f",{layer_wg_time:.6f}"
+            
+            print(f"id: {self.id} ,Total cycles spent on input grad compute: {self.total_input_grad_compute}")
+            data += f",{layer_ig_time:.6f}"
+            
+            print(f"id: {self.id} ,Total cycles spent idle waiting for fwd finish: {self.total_waiting_for_fwd_comm}")
+            data += f",{self.total_waiting_for_fwd_comm / self.generator.freq:.6f}"
+            
+            print(f"id: {self.id} ,Total cycles spent idle waiting for weight grad finish: {self.total_waiting_for_wg_comm}")
+            data += f",{self.total_waiting_for_wg_comm / self.generator.freq:.6f}"
+            
+            print(f"id: {self.id} ,Total cycles spent idle waiting for input grad finish: {self.total_waiting_for_ig_comm}")
+            data += f",{self.total_waiting_for_ig_comm / self.generator.freq:.6f}"
+            
+            print(f"id: {self.id} ,Total cycles spent on fwd pass comm: {self.total_fwd_comm}")
+            
+            # 计算带宽
+            fwd_bw = self.compute_busbw(self.fwd_pass_comm_type, fwd_pass_group_size,
+                                       self.fwd_pass_comm_size, self.total_fwd_comm)
+            data += f",{self.total_fwd_comm / self.generator.freq:.6f},{fwd_bw[0]:.2f},{fwd_bw[1]:.2f}"
+            
+            print(f"id: {self.id} ,Total cycles spent on weight grad comm: {self.total_weight_grad_comm}")
+            wg_bw = self.compute_busbw(self.weight_grad_comm_type, weight_grad_group_size,
+                                      self.weight_grad_comm_size, self.total_weight_grad_comm)
+            data += f",{self.total_weight_grad_comm / self.generator.freq:.6f},{wg_bw[0]:.2f},{wg_bw[1]:.2f}"
+            
+            print(f"id: {self.id} ,Total cycles spent on input grad comm: {self.total_input_grad_comm}")
+            ig_bw = self.compute_busbw(self.input_grad_comm_type, input_grad_group_size,
+                                      self.input_grad_comm_size, self.total_input_grad_comm)
+            data += f",{self.total_input_grad_comm / self.generator.freq:.6f},{ig_bw[0]:.2f},{ig_bw[1]:.2f}"
+            
+            # 添加workload finished at时间
+            data += f",{self.generator.get_tick() / self.generator.freq:.6f}"
+            
+            end_to_end.write_line(data)
+            
+            # 最后一层的总结
+            if layer_num == self.workload.size - 1:
+                total_exposed = (self.generator.get_tick() / self.generator.freq) - total_compute
+                
+                # 写入SUM行
+                sum_data = f"SUM,{run_name},{total_fwd_time[0]:.6f},{total_wg_time[0]:.6f},{total_ig_time[0]:.6f},{total_fwd_time[1]:.6f},{total_wg_time[1]:.6f},{total_ig_time[1]:.6f},{total_fwd_time[2]:.6f},NONE,NONE,{total_wg_time[2]:.6f},NONE,NONE,{total_ig_time[2]:.6f},NONE,NONE"
+                end_to_end.write_line(sum_data)
+                
+                total_time = total_compute + total_exposed
+                summary_data = f"total exposed comm,{total_exposed:.6f},total comp,{total_compute:.6f},total time,{total_time:.6f}"
+                end_to_end.write_line(summary_data)
+        
         return layer_data
 
     def report_simple(self, run_name: str, layer_num: int, total_rows: int, stat_row: int,
@@ -135,23 +217,46 @@ class LayerReporting:
         weight_grad_group_size = self._calculate_group_size(self.weight_grad_group_type, tp_size, dp_size, ep_size)
         input_grad_group_size = self._calculate_group_size(self.input_grad_group_type, tp_size, dp_size, ep_size)
 
+        # 获取用户参数实例
+        param = UserParam.getInstance()
+
+        # Analytical Mode处理 - 精准复现C++版本
+        if param.mode == ModeType.ANALYTICAL:
+            self.total_fwd_comm = self.compute_time(self.fwd_pass_comm_type, tp_size, fwd_pass_group_size,
+                                                   self.fwd_pass_comm_size, self.fwd_pass_group_type,
+                                                   self.generator.all_gpus[0], ep_size)
+            self.total_weight_grad_comm = self.compute_time(self.weight_grad_comm_type, tp_size, weight_grad_group_size,
+                                                           self.weight_grad_comm_size, self.weight_grad_group_type,
+                                                           self.generator.all_gpus[0], ep_size)
+            self.total_input_grad_comm = self.compute_time(self.input_grad_comm_type, tp_size, input_grad_group_size,
+                                                          self.input_grad_comm_size, self.input_grad_group_type,
+                                                          self.generator.all_gpus[0], ep_size)
+            self.total_waiting_for_fwd_comm = self.total_fwd_comm  # tp forward
+            self.total_waiting_for_ig_comm = self.total_input_grad_comm  # tp backward
+            self.total_waiting_for_wg_comm = self.total_weight_grad_comm
+
         # 气泡时间计算（对应C++版本的embedding_layer检查）
         if self.id != "embedding_layer":
             pre_bubble_time += ((self.total_waiting_for_fwd_comm + self.total_forward_pass_compute + 
                                 self.total_weight_grad_compute + self.total_input_grad_compute + 
                                 self.total_waiting_for_ig_comm) / self.generator.freq)
         
-        # DP通信时间计算（对应C++版本的DP_EP检查）
+        # DP通信时间计算（精准复现C++版本的重叠比率处理）
         if self.weight_grad_group_type == GroupType.DP_EP:
-            # 这里应该应用重叠比率，暂时简化处理
+            self.total_waiting_for_wg_comm *= (1 - param.net_work_param.dp_overlap_ratio)
             dp_ep_comm += (self.total_waiting_for_wg_comm / self.generator.freq)
         else:
+            self.total_waiting_for_wg_comm *= (1 - param.net_work_param.dp_overlap_ratio)
             dp_comm += (self.total_waiting_for_wg_comm / self.generator.freq)
         
-        # TP/EP通信时间计算
+        # TP/EP通信时间计算（精准复现C++版本的重叠比率处理）
         if self.fwd_pass_group_type == GroupType.EP:
+            self.total_waiting_for_fwd_comm *= (1 - param.net_work_param.ep_overlap_ratio)
+            self.total_waiting_for_ig_comm *= (1 - param.net_work_param.ep_overlap_ratio)
             expose_ep_comm += ((self.total_waiting_for_fwd_comm + self.total_waiting_for_ig_comm) / self.generator.freq)
         else:
+            self.total_waiting_for_fwd_comm *= (1 - param.net_work_param.tp_overlap_ratio)
+            self.total_waiting_for_ig_comm *= (1 - param.net_work_param.tp_overlap_ratio)
             expose_tp_comm += ((self.total_waiting_for_fwd_comm + self.total_waiting_for_ig_comm) / self.generator.freq)
         
         # 计算时间（转换为秒）
@@ -178,7 +283,7 @@ class LayerReporting:
             print(f"Total collectives issued for this layer: {self.collective_counter}")
             print(f"************************* Workload stats ************************* {self.id}")
 
-            # CSV 头部
+            # CSV 头部 - 精准复现C++版本格式
             if stat_row == 0 and layer_num == 0:
                 header = f"layer_name,{run_name},fwd compute,wg compute,ig compute,fwd exposed comm,wg exposed comm,ig exposed comm,fwd total comm,algbw,busbw,wg total comm,algbw,busbw,ig total comm,algbw,busbw"
                 end_to_end.write_line(header)
@@ -207,12 +312,13 @@ class LayerReporting:
 
             # 最后一层的总结
             if layer_num == self.workload.size - 1:
-                if not hasattr(self.generator, 'analytical_mode') or not self.generator.analytical_mode:
+                # 精准复现C++版本的analytical mode检查
+                if param.mode != ModeType.ANALYTICAL:
                     total_exposed = (self.generator.get_tick() / self.generator.freq) - total_compute
 
-                # PP 通信时间
-                expose_pp_time = (2 * vpp * ga * (pp_commsize * 1e9 /
-                                 (self.generator.freq * 1.0)) / self.generator.freq)
+                # PP 通信时间 - 精准复现C++版本的计算公式
+                expose_pp_time = (2 * vpp * ga * (pp_commsize * GBPS / (param.net_work_param.pp_overlap_ratio) * 1e9) / self.generator.freq)
+                expose_pp_time *= (1 - param.net_work_param.pp_overlap_ratio)
 
                 # PP 气泡时间
                 pre_bubble_time *= (pp_size - 1) / (ga * vpp)
@@ -227,9 +333,15 @@ class LayerReporting:
                 def format_value(value):
                     return f"{value:.6f}" if abs(value) < float('inf') else "NaN or Inf"
 
+                # 文件路径处理 - 精准复现C++版本
+                file_name = param.res
+                last_slash_pos = param.res.rfind('/')
+                if last_slash_pos != -1:
+                    file_name = param.res[last_slash_pos + 1:]
+
                 # 输出最终统计
                 keys = "File name, Expose DP comm, Expose DP_EP comm, Expose TP comm, Expose_EP_comm, Expose_PP_comm, bubble time, total comp, total exposed comm, Total time"
-                values = f"{run_name}, {format_value(dp_comm)} ({format_percentage(dp_comm)}), "
+                values = f"{file_name}, {format_value(dp_comm)} ({format_percentage(dp_comm)}), "
                 values += f"{format_value(dp_ep_comm)} ({format_percentage(dp_ep_comm)}), "
                 values += f"{format_value(expose_tp_comm)} ({format_percentage(expose_tp_comm)}), "
                 values += f"{format_value(expose_ep_comm)} ({format_percentage(expose_ep_comm)}), "

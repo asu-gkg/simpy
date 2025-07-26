@@ -10,6 +10,13 @@
 
 from system.common import ComType, Tick
 from system.mock_nccl_group import GroupType
+import math
+
+
+# 精准复现C++版本的常量定义
+CLOCK_PERIOD = 1
+FREQ = 1000.0 / CLOCK_PERIOD
+GBPS = 1.0 / (1024 * 1024 * 1024)  # 对应C++版本的GBps
 
 
 class LayerComputation:
@@ -52,16 +59,97 @@ class LayerComputation:
             return 1.0
 
     def _get_value(self, data_size: int, nnode: int, data: list) -> float:
-        """从数据中获取值 - 辅助方法"""
-        # 这里应该实现从比率数据中查找对应值的逻辑
-        # 暂时返回默认值，后续可以根据实际数据格式实现
-        return 1.0
+        """从数据中获取值 - 精准复现C++版本的getValue方法"""
+        if not data or len(data) == 0:
+            return 1.0
+            
+        # 根据节点数量选择列索引，精准复现C++版本的逻辑
+        col_index = 0
+        if nnode == 1:
+            col_index = 1
+        elif nnode == 2:
+            col_index = 2
+        elif nnode == 4:
+            col_index = 3
+        elif nnode == 8:
+            col_index = 4
+        elif nnode == 16:
+            col_index = 5
+        elif nnode == 32:
+            col_index = 6
+        elif nnode == 64:
+            col_index = 7
+        elif nnode == 128:
+            col_index = 8
+        elif nnode == 9:
+            col_index = 9
+        else:
+            col_index = 5  # 默认值
+            
+        if data_size == 0:
+            return 1.0
+            
+        # 获取最小数据大小
+        try:
+            min_size = float(data[0][0])
+        except (IndexError, ValueError):
+            return 1.0
+            
+        # 如果数据大小小于最小值，返回第一个值除以最后一个值
+        if data_size < min_size:
+            try:
+                first_value = float(data[0][col_index])
+                last_value = float(data[-1][col_index])
+                return first_value / last_value if last_value != 0 else 1.0
+            except (IndexError, ValueError):
+                return 1.0
+                
+        # 数据插值计算，精准复现C++版本的逻辑
+        for i in range(len(data) - 1):
+            try:
+                size1 = float(data[i][0])
+                size2 = float(data[i + 1][0])
+                if data_size >= size1 and data_size <= size2:
+                    value1 = float(data[i][col_index])
+                    value2 = float(data[i + 1][col_index])
+                    interpolated_value = self._interpolate(data_size, size1, size2, value1, value2)
+                    # 除以最后一个值，精准复现C++版本的逻辑
+                    last_value = float(data[-1][col_index])
+                    return interpolated_value / last_value if last_value != 0 else 1.0
+            except (IndexError, ValueError):
+                continue
+                
+        # 如果数据大小超出范围，抛出异常（对应C++版本的runtime_error）
+        raise RuntimeError("Data size out of range")
+
+    def _interpolate(self, size: float, size1: float, size2: float, value1: float, value2: float) -> float:
+        """插值计算 - 精准复现C++版本的interpolate函数"""
+        if size2 == size1:
+            return value1
+        return value1 + (value2 - value1) * (size - size1) / (size2 - size1)
 
     def compute_time(self, comtype: ComType, tp_size: int, nranks: int, data_size: int,
                     group_type: GroupType, all_gpus: int, ep_size: int) -> Tick:
         """计算通信时间 - 精准复现C++版本的compute_time方法"""
         if comtype == ComType.None_:
             return 0
+
+        # 精准复现C++版本的特殊处理逻辑
+        if 1 < data_size < 1048576:
+            if nranks == 2:
+                return 10000
+            elif nranks == 4:
+                return 12000
+            elif nranks == 8:
+                return 15000
+            elif nranks == 16:
+                return 66000
+            elif nranks == 32:
+                return 135000
+            elif nranks == 64:
+                return 200000
+            elif nranks == 128:
+                return 320000
 
         # 获取参数配置（这些应该从系统参数中获取）
         gpus_per_server = getattr(self.generator, 'gpus_per_server', 8)
@@ -83,20 +171,17 @@ class LayerComputation:
         bw_ratio = self.cal_ratio(data_size, nranks, tp_size, gpus_per_server,
                                  group_type, coll_type, result.get('is_nvlink', False))
 
-        # 输出调试信息
+        # 输出调试信息，精准复现C++版本的输出格式
         if self.generator.id == 0:
-            print(f"Communication Type: {coll_type}, Communication Group: {group_type.value}, "
-                  f"Group Size: {nranks}, Data Size: {data_size}, Ratio: {bw_ratio}, "
-                  f"Bottleneck is nvlink: {result.get('is_nvlink', False)}")
+            print(f"Communication Type: {coll_type}Communication Group: {group_type.value}Group Size: {nranks}Data Size: {data_size}Ratio: {bw_ratio}Bottleneck is nvlink: {result.get('is_nvlink', False)}")
 
-        # 计算通信时间
+        # 计算通信时间，精准复现C++版本的计算公式
         busbw = result.get('busbw', 100.0)  # GB/s
-        gbps = 1e9  # 转换因子
 
         if comtype == ComType.All_Reduce:
-            comp_time = data_size * gbps / (bw_ratio * busbw) * 2 * (nranks - 1) / nranks
+            comp_time = data_size * GBPS / (bw_ratio * busbw) * 1e9 * 2 * (nranks - 1) / (nranks / 1.0)
         else:
-            comp_time = data_size * gbps / (bw_ratio * busbw) * (nranks - 1) / nranks
+            comp_time = data_size * GBPS / (bw_ratio * busbw) * 1e9 * (nranks - 1) / (nranks / 1.0)
 
         return int(comp_time)
 
@@ -117,7 +202,7 @@ class LayerComputation:
                 nics_per_server: int, group_type: str, coll_type: str,
                 tp_size: int, nranks: int, gpus_per_server: int,
                 ep_size: int, nic_type: str) -> dict:
-        """计算总线带宽 - 辅助方法"""
+        """计算总线带宽 - 精准复现C++版本的逻辑"""
         result = {'busbw': 100.0, 'is_nvlink': False}
 
         if group_type == "TP":
@@ -137,17 +222,25 @@ class LayerComputation:
                 result['is_nvlink'] = True
             else:
                 node_count = (tp_size * nranks) // gpus_per_server
-                temp_nics_per_server = nics_per_server // tp_size if tp_size > gpus_per_server else nics_per_server // tp_size
+                temp_gpus_per_server = gpus_per_server // tp_size if gpus_per_server // tp_size > 1 else 1
+                temp_nics_per_server = nics_per_server // gpus_per_server if tp_size > gpus_per_server else nics_per_server // tp_size
                 result['busbw'] = bw_per_nic * temp_nics_per_server / node_count
                 result['is_nvlink'] = False
 
         elif group_type == "DP" and nranks > 1:
-            result['busbw'] = bw_per_nic * nics_per_server / nranks
+            if tp_size <= gpus_per_server:
+                temp_gpus_per_server = gpus_per_server // tp_size
+                temp_nics_per_server = nics_per_server // tp_size
+                result['busbw'] = bw_per_nic * temp_nics_per_server / nranks
+            else:
+                temp_nics_per_server = nics_per_server // gpus_per_server
+                result['busbw'] = bw_per_nic * temp_nics_per_server / nranks
             result['is_nvlink'] = False
 
         elif group_type == "DP_EP" and nranks > 1:
             if tp_size * ep_size <= gpus_per_server:
                 temp_nics_per_server = nics_per_server // (tp_size * ep_size)
+                temp_gpus_per_server = gpus_per_server // (tp_size * ep_size)
                 result['busbw'] = bw_per_nic * temp_nics_per_server / nranks
             else:
                 temp_nics_per_server = nics_per_server // gpus_per_server
@@ -157,18 +250,15 @@ class LayerComputation:
         return result
 
     def compute_busbw(self, comtype: ComType, nranks: int, data_size: int, total_comm: Tick) -> tuple:
-        """计算总线带宽 - 对应C++版本的compute_busbw方法"""
-        freq = getattr(self.generator, 'freq', 1e9)  # 默认频率
-        gbps = 1e9  # GB/s 转换因子
+        """计算总线带宽 - 精准复现C++版本的compute_busbw方法"""
+        # 精准复现C++版本的计算公式
+        algbw = data_size / (total_comm / FREQ) * 1000000 * GBPS if total_comm > 0 else 0.0
 
-        # 计算算法带宽
-        algbw = data_size / (total_comm / freq) * 1000000 * gbps if total_comm > 0 else 0.0
-
-        # 计算总线带宽
+        # 计算总线带宽，精准复现C++版本的逻辑
         if comtype == ComType.All_Reduce:
-            busbw = algbw * 2 * (nranks - 1) / nranks if nranks > 0 else 0.0
+            busbw = algbw * 2 * (nranks - 1) / (nranks / 1.0) if nranks > 0 else 0.0
         elif comtype in [ComType.All_Gather, ComType.Reduce_Scatter, ComType.All_to_All]:
-            busbw = algbw * (nranks - 1) / nranks if nranks > 0 else 0.0
+            busbw = algbw * (nranks - 1) / (nranks / 1.0) if nranks > 0 else 0.0
         else:
             busbw = 0.0
 

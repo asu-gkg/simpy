@@ -155,6 +155,49 @@ class ParallelStrategy(Enum):
     DP_EP = "DP_EP"
     NONE = "NONE"
 
+# Simulation request types - corresponds to AstraNetworkAPI.hh
+class ReqType(Enum):
+    """Request type enumeration - corresponds to req_type_e in C++"""
+    UINT8 = "UINT8"
+    BFLOAT16 = "BFLOAT16"
+    FP32 = "FP32"
+
+class NcclFlowTag:
+    """NCCL flow tag - corresponds to ncclFlowTag struct in C++"""
+    
+    def __init__(self, channel_id: int = -1, chunk_id: int = -1, 
+                 current_flow_id: int = -1, child_flow_id: int = -1,
+                 sender_node: int = -1, receiver_node: int = -1,
+                 flow_size: int = -1, pQps: Any = None, 
+                 tag_id: int = -1, nvls_on: bool = False):
+        self.channel_id = channel_id
+        self.chunk_id = chunk_id
+        self.current_flow_id = current_flow_id
+        self.child_flow_id = child_flow_id
+        self.sender_node = sender_node
+        self.receiver_node = receiver_node
+        self.flow_size = flow_size
+        self.pQps = pQps
+        self.tag_id = tag_id
+        self.tree_flow_list: List[int] = []
+        self.nvls_on = nvls_on
+
+class SimRequest:
+    """Simulation request - corresponds to sim_request struct in C++"""
+    
+    def __init__(self, src_rank: int = 0, dst_rank: int = 0, tag: int = 0,
+                 req_type: ReqType = ReqType.FP32, req_count: int = 0,
+                 vnet: int = 0, layer_num: int = 0, 
+                 flow_tag: NcclFlowTag = None):
+        self.srcRank = src_rank
+        self.dstRank = dst_rank
+        self.tag = tag
+        self.reqType = req_type
+        self.reqCount = req_count
+        self.vnet = vnet
+        self.layerNum = layer_num
+        self.flowTag = flow_tag if flow_tag is not None else NcclFlowTag()
+
 # 辅助函数
 def comtype_to_coll(comtype: ComType) -> str:
     """将ComType转换为字符串表示"""
