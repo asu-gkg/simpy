@@ -419,20 +419,42 @@ class Sys(Callable):
                        callData: CallData, cycles: int) -> None:
         """Register event - corresponds to Sys::register_event"""
         mycycles = Tick(cycles)
+        # 忽略返回值，因为register_event不需要清零counter
         self.try_register_event(callable_obj, event, callData, mycycles)
 
     def try_register_event(self, callable_obj: Callable, event: EventType,
-                           callData: CallData, cycles: Tick) -> None:
-        """Try to register event - corresponds to Sys::try_register_event"""
+                           callData: CallData, cycles: Tick) -> bool:
+        """Try to register event - corresponds to Sys::try_register_event
+        
+        Returns:
+            bool: True if the counter should be cleared (simulating C++ reference behavior)
+        """
+        should_schedule = False
         current_tick = self.boostedTick() + cycles
+        
+        # 添加日志
+        from system.mock_nccl_log import MockNcclLog, NcclLogLevel
+        log = MockNcclLog.getInstance()
+        log.writeLog(NcclLogLevel.INFO, f"try_register_event EventType {event} at tick {current_tick}")
+        
+        # 关键修复：所有事件都通过event_queue处理，对应C++版本
         if current_tick not in self.event_queue:
             self.event_queue[current_tick] = []
+            should_schedule = True
+            
         self.event_queue[current_tick].append((callable_obj, event, callData))
         self.pending_events += 1
         
-        if self.NI:
+        # 调度CallEvents事件到AnaSim，对应C++版本
+        if should_schedule and self.NI:
             tmp = self.generate_time(int(cycles))
-            # Schedule with network interface - exact translation from C++
+            from system.basic_event_handler_data import BasicEventHandlerData
+            data = BasicEventHandlerData(self, EventType.CallEvents)
+            log.writeLog(NcclLogLevel.INFO, f"调度CallEvents到AnaSim，延迟: {cycles}")
+            self.NI.sim_schedule(tmp, Sys.handleEvent, data)
+        
+        # 返回True表示调用者应该清零counter，模拟C++版本的 cycles = 0 行为
+        return True
 
     def call_events(self) -> None:
         """Call events - corresponds to Sys::call_events"""
@@ -979,6 +1001,7 @@ class Sys(Callable):
         else:
             # Delayed send
             sender = SimSendCaller(self, buffer, count, msg_type, dst, tag, request, msg_handler, fun_arg)
+            # 忽略返回值，这里不需要清零counter
             self.try_register_event(sender, EventType.General, None, delay)
             
         return 1
@@ -994,6 +1017,7 @@ class Sys(Callable):
         else:
             # Delayed receive
             receiver = SimRecvCaller(self, buffer, count, msg_type, src, tag, request, msg_handler, fun_arg)
+            # 忽略返回值，这里不需要清零counter
             self.try_register_event(receiver, EventType.General, None, delay)
             
         return 1
@@ -1094,8 +1118,22 @@ class Sys(Callable):
         """Handle event - corresponds to Sys::handleEvent"""
         if arg is None:
             return
-        # This should handle different event types based on BasicEventHandlerData structure
-        # Specific implementation depends on BasicEventHandlerData
+            
+        # 对应C++版本的实现
+        from system.mock_nccl_log import MockNcclLog, NcclLogLevel
+        log = MockNcclLog.getInstance()
+        
+        # 获取事件处理数据
+        ehd = arg  # BasicEventHandlerData
+        node = ehd.node  # Sys实例
+        event = ehd.event  # EventType
+        
+        if event == EventType.CallEvents:
+            log.writeLog(NcclLogLevel.DEBUG, "Sys::handleEvent EventType::CallEvents")
+            # 关键：调用node的iterate方法，这会处理call_events
+            node.iterate()
+        else:
+            log.writeLog(NcclLogLevel.WARNING, f"未处理的事件类型: {event}") 
 
     def generate_time(self, cycles: int) -> timespec_t:
         """Generate time - corresponds to Sys::generate_time"""

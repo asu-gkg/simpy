@@ -162,35 +162,44 @@ class Workload(Callable):
         """
         from system.mock_nccl_log import MockNcclLog, NcclLogLevel
         log = MockNcclLog.getInstance()
-        log.writeLog(NcclLogLevel.DEBUG, f"工作负载接收事件: {event_type}")
+        log.writeLog(NcclLogLevel.INFO, f"工作负载接收事件: {event_type}, counter: {self.counter}")
         
-        if event_type == EventType.General:
-            log.writeLog(NcclLogLevel.DEBUG, f"处理通用事件 - 调用迭代器")
-            # 根据并行策略调用相应的迭代方法
-            if self.parallelism_policy == ParallelismPolicy.MicroBenchmark:
-                self.iterators.iterate_micro_benchmark()
-            elif self.parallelism_policy == ParallelismPolicy.Data:
-                self.iterators.iterate_data_parallel()
-            elif self.parallelism_policy == ParallelismPolicy.TransformerFwdInBckwd:
-                self.iterators.iterate_hybrid_parallel_transformer_fwd_in_bckwd()
-            elif self.parallelism_policy == ParallelismPolicy.Transformer:
-                self.iterators.iterate_hybrid_parallel_transformer()
-            elif self.parallelism_policy == ParallelismPolicy.DLRM:
-                self.iterators.iterate_hybrid_parallel_dlrm()
-            elif self.parallelism_policy == ParallelismPolicy.Model:
-                self.iterators.iterate_model_parallel()
-            elif self.parallelism_policy == ParallelismPolicy.HybridDataModel:
-                self.iterators.iterate_hybrid_parallel_data_model()
-            elif self.parallelism_policy == ParallelismPolicy.HybridModelData:
-                self.iterators.iterate_hybrid_parallel_model_data()
-            elif self.parallelism_policy == ParallelismPolicy.DistributedInference:
-                self.iterators.iterate_distributed_inference()
-            elif self.parallelism_policy == ParallelismPolicy.HybridCustomized:
-                self.iterators.iterate_hybrid_parallel_customized()
-            else:
-                log.writeLog(NcclLogLevel.ERROR, f"未支持的并行策略: {self.parallelism_policy}")
+        # 关键修复：对应C++版本的逻辑 - 首先检查counter
+        if self.counter > 0:
+            log.writeLog(NcclLogLevel.INFO, f"counter > 0，注册等待事件: {self.counter}")
+            # 调用try_register_event，并根据返回值决定是否清零counter
+            should_clear = self.generator.try_register_event(self, EventType.Workload_Wait, None, self.counter)
+            if should_clear:
+                # 模拟C++版本的引用传递效果：cycles = 0
+                self.counter = 0
+                log.writeLog(NcclLogLevel.INFO, f"counter已清零，模拟C++版本的引用传递效果")
+            return
+        
+        # counter == 0，执行实际的迭代逻辑
+        log.writeLog(NcclLogLevel.INFO, f"处理事件 - 调用迭代器")
+        # 根据并行策略调用相应的迭代方法
+        if self.parallelism_policy == ParallelismPolicy.MicroBenchmark:
+            self.iterators.iterate_micro_benchmark()
+        elif self.parallelism_policy == ParallelismPolicy.Data:
+            self.iterators.iterate_data_parallel()
+        elif self.parallelism_policy == ParallelismPolicy.TransformerFwdInBckwd:
+            self.iterators.iterate_hybrid_parallel_transformer_fwd_in_bckwd()
+        elif self.parallelism_policy == ParallelismPolicy.Transformer:
+            self.iterators.iterate_hybrid_parallel_transformer()
+        elif self.parallelism_policy == ParallelismPolicy.DLRM:
+            self.iterators.iterate_hybrid_parallel_dlrm()
+        elif self.parallelism_policy == ParallelismPolicy.Model:
+            self.iterators.iterate_model_parallel()
+        elif self.parallelism_policy == ParallelismPolicy.HybridDataModel:
+            self.iterators.iterate_hybrid_parallel_data_model()
+        elif self.parallelism_policy == ParallelismPolicy.HybridModelData:
+            self.iterators.iterate_hybrid_parallel_model_data()
+        elif self.parallelism_policy == ParallelismPolicy.DistributedInference:
+            self.iterators.iterate_distributed_inference()
+        elif self.parallelism_policy == ParallelismPolicy.HybridCustomized:
+            self.iterators.iterate_hybrid_parallel_customized()
         else:
-            log.writeLog(NcclLogLevel.WARNING, f"未处理的事件类型: {event_type}")
+            log.writeLog(NcclLogLevel.ERROR, f"未支持的并行策略: {self.parallelism_policy}")
     
     def check_for_sim_end(self):
         """

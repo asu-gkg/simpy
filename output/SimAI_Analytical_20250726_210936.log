@@ -1,0 +1,27 @@
+[2025-07-26 21:09:36][INFO] [00000001fb400c00]SimAI Analytical模式启动 - 日志文件: SimAI_Analytical_20250726_210936.log
+[2025-07-26 21:09:36][INFO] [00000001fb400c00]工作负载初始化完成 - 类型: HYBRID_TRANSFORMER_FWD_IN_BCKWD, 层数: 2, 总轮次: 1
+[2025-07-26 21:09:36][INFO] [00000001fb400c00]并行策略: ParallelismPolicy.TransformerFwdInBckwd, 检查点数: 0
+[2025-07-26 21:09:36][INFO] [00000001fb400c00]启动工作负载执行 - 当前状态: LoopState.Forward_Pass, 索引: 0
+[2025-07-26 21:09:36][INFO] [00000001fb400c00]工作负载接收事件: EventType.General, counter: 0
+[2025-07-26 21:09:36][INFO] [00000001fb400c00]处理事件 - 调用迭代器
+[2025-07-26 21:09:36][INFO] [00000001fb400c00]Transformer前向反向混合并行迭代
+[2025-07-26 21:09:36][INFO] [00000001fb400c00]进入WorkloadIterators迭代器 - 当前状态: LoopState.Forward_Pass, 层索引: 0, 总层数: 2
+[2025-07-26 21:09:36][INFO] [00000001fb400c00]处理前向传播阶段 - 层 0
+[2025-07-26 21:09:36][INFO] [00000001fb400c00]设置层 0 前向计算时间: 556000.0
+[2025-07-26 21:09:36][INFO] [00000001fb400c00]注册层 0 前向计算等待事件，等待时间: 556000.0
+[2025-07-26 21:09:36][INFO] [00000001fb400c00]try_register_event EventType EventType.Workload_Wait at tick 556000.0
+[2025-07-26 21:09:36][INFO] [00000001fb400c00]直接调度Workload_Wait事件到工作负载，延迟: 556000.0
+[2025-07-26 21:09:36][INFO] [00000001fb400c00]执行Workload_Wait事件回调
+[2025-07-26 21:09:36][INFO] [00000001fb400c00]工作负载接收事件: EventType.Workload_Wait, counter: 556000.0
+[2025-07-26 21:09:36][INFO] [00000001fb400c00]counter > 0，注册等待事件: 556000.0
+[2025-07-26 21:09:36][INFO] [00000001fb400c00]try_register_event EventType EventType.Workload_Wait at tick 1112000.0
+[2025-07-26 21:09:36][INFO] [00000001fb400c00]直接调度Workload_Wait事件到工作负载，延迟: 556000.0
+[2025-07-26 21:09:36][INFO] [00000001fb400c00]counter已清零，等待时间过后将继续执行
+[2025-07-26 21:09:36][INFO] [00000001fb400c00]执行Workload_Wait事件回调
+[2025-07-26 21:09:36][INFO] [00000001fb400c00]工作负载接收事件: EventType.Workload_Wait, counter: 0
+[2025-07-26 21:09:36][INFO] [00000001fb400c00]处理事件 - 调用迭代器
+[2025-07-26 21:09:36][INFO] [00000001fb400c00]Transformer前向反向混合并行迭代
+[2025-07-26 21:09:36][INFO] [00000001fb400c00]进入WorkloadIterators迭代器 - 当前状态: LoopState.Forward_Pass, 层索引: 0, 总层数: 2
+[2025-07-26 21:09:36][INFO] [00000001fb400c00]处理前向传播阶段 - 层 0
+[2025-07-26 21:09:36][INFO] [00000001fb400c00]发起层 0 前向传播通信，大小: 16777216.0
+[2025-07-26 21:09:36][INFO] [00000001fb400c00]层 0 (embedding_layer) 发起前向传播通信 - 类型: ComType.All_Reduce, 大小: 16777216.0, 策略: SchedulingPolicy.None_, 屏障: CollectiveBarrier.Blocking
