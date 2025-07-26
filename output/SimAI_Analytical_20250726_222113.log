@@ -1,0 +1,195 @@
+[2025-07-26 22:21:13.427][INFO][1fb400c00] [analytical_astra.py:118 main()] SimAI Analytical模式启动 - 日志文件: SimAI_Analytical_20250726_222113.log
+[2025-07-26 22:21:13.428][INFO][1fb400c00] [workload_base.py:101 Workload.__init__()] 工作负载初始化完成 - 类型: HYBRID_TRANSFORMER_FWD_IN_BCKWD, 层数: 2, 总轮次: 1
+[2025-07-26 22:21:13.429][INFO][1fb400c00] [workload_base.py:102 Workload.__init__()] 并行策略: ParallelismPolicy.TransformerFwdInBckwd, 检查点数: 0
+[2025-07-26 22:21:13.432][INFO][1fb400c00] [workload_base.py:155 Workload.fire()] 启动工作负载执行 - 当前状态: LoopState.Forward_Pass, 索引: 0
+[2025-07-26 22:21:13.432][INFO][1fb400c00] [workload_base.py:169 Workload.call()] 工作负载接收事件: EventType.General, counter: 0
+[2025-07-26 22:21:13.432][INFO][1fb400c00] [workload_base.py:183 Workload.call()] 处理事件 - 调用迭代器
+[2025-07-26 22:21:13.432][INFO][1fb400c00] [workload_base.py:216 Workload.check_for_sim_end()] 🔍 check_for_sim_end: pass_counter=0, total_pass=1
+[2025-07-26 22:21:13.432][INFO][1fb400c00] [workload_iterators.py:626 WorkloadIterators.iterate_hybrid_parallel_transformer_fwd_in_bckwd()] Transformer前向反向混合并行迭代
+[2025-07-26 22:21:13.432][INFO][1fb400c00] [workload_iterators.py:627 WorkloadIterators.iterate_hybrid_parallel_transformer_fwd_in_bckwd()] 进入WorkloadIterators迭代器 - 当前状态: LoopState.Forward_Pass, 层索引: 0, 总层数: 2
+[2025-07-26 22:21:13.432][INFO][1fb400c00] [workload_iterators.py:630 WorkloadIterators.iterate_hybrid_parallel_transformer_fwd_in_bckwd()] === 处理前向传播阶段 - 层 0/1 ===
+[2025-07-26 22:21:13.432][INFO][1fb400c00] [workload_iterators.py:639 WorkloadIterators.iterate_hybrid_parallel_transformer_fwd_in_bckwd()] 层 0 设置前向计算时间: 556000.0
+[2025-07-26 22:21:13.432][INFO][1fb400c00] [workload_iterators.py:642 WorkloadIterators.iterate_hybrid_parallel_transformer_fwd_in_bckwd()] 层 0 注册前向计算等待事件，等待时间: 556000.0
+[2025-07-26 22:21:13.432][INFO][1fb400c00] [sys.py:443 Sys.try_register_event()] try_register_event EventType EventType.Workload_Wait at tick 556000.0
+[2025-07-26 22:21:13.432][INFO][1fb400c00] [sys.py:458 Sys.try_register_event()] 调度CallEvents到AnaSim，延迟: 556000.0
+[2025-07-26 22:21:13.485][INFO][1fb400c00] [workload_base.py:169 Workload.call()] 工作负载接收事件: EventType.Workload_Wait, counter: 556000.0
+[2025-07-26 22:21:13.486][INFO][1fb400c00] [workload_base.py:173 Workload.call()] counter > 0，注册等待事件: 556000.0
+[2025-07-26 22:21:13.486][INFO][1fb400c00] [sys.py:443 Sys.try_register_event()] try_register_event EventType EventType.Workload_Wait at tick 1112000.0
+[2025-07-26 22:21:13.486][INFO][1fb400c00] [sys.py:458 Sys.try_register_event()] 调度CallEvents到AnaSim，延迟: 556000.0
+[2025-07-26 22:21:13.486][INFO][1fb400c00] [workload_base.py:179 Workload.call()] counter已清零，模拟C++版本的引用传递效果
+[2025-07-26 22:21:13.539][INFO][1fb400c00] [workload_base.py:169 Workload.call()] 工作负载接收事件: EventType.Workload_Wait, counter: 0
+[2025-07-26 22:21:13.539][INFO][1fb400c00] [workload_base.py:183 Workload.call()] 处理事件 - 调用迭代器
+[2025-07-26 22:21:13.539][INFO][1fb400c00] [workload_base.py:216 Workload.check_for_sim_end()] 🔍 check_for_sim_end: pass_counter=0, total_pass=1
+[2025-07-26 22:21:13.539][INFO][1fb400c00] [workload_iterators.py:626 WorkloadIterators.iterate_hybrid_parallel_transformer_fwd_in_bckwd()] Transformer前向反向混合并行迭代
+[2025-07-26 22:21:13.539][INFO][1fb400c00] [workload_iterators.py:627 WorkloadIterators.iterate_hybrid_parallel_transformer_fwd_in_bckwd()] 进入WorkloadIterators迭代器 - 当前状态: LoopState.Forward_Pass, 层索引: 0, 总层数: 2
+[2025-07-26 22:21:13.539][INFO][1fb400c00] [workload_iterators.py:630 WorkloadIterators.iterate_hybrid_parallel_transformer_fwd_in_bckwd()] === 处理前向传播阶段 - 层 0/1 ===
+[2025-07-26 22:21:13.539][INFO][1fb400c00] [workload_iterators.py:656 WorkloadIterators.iterate_hybrid_parallel_transformer_fwd_in_bckwd()] 层 0 发起前向传播通信，大小: 16777216.0
+[2025-07-26 22:21:13.539][INFO][1fb400c00] [layer_communication.py:29 Layer.issue_forward_pass_comm()] 层 0 (embedding_layer) 发起前向传播通信 - 类型: ComType.All_Reduce, 大小: 16777216.0, 策略: SchedulingPolicy.None_, 屏障: CollectiveBarrier.Blocking
+[2025-07-26 22:21:13.539][INFO][1fb400c00] [workload_base.py:169 Workload.call()] 工作负载接收事件: EventType.General, counter: 0
+[2025-07-26 22:21:13.539][INFO][1fb400c00] [workload_base.py:183 Workload.call()] 处理事件 - 调用迭代器
+[2025-07-26 22:21:13.539][INFO][1fb400c00] [workload_base.py:216 Workload.check_for_sim_end()] 🔍 check_for_sim_end: pass_counter=0, total_pass=1
+[2025-07-26 22:21:13.539][INFO][1fb400c00] [workload_iterators.py:626 WorkloadIterators.iterate_hybrid_parallel_transformer_fwd_in_bckwd()] Transformer前向反向混合并行迭代
+[2025-07-26 22:21:13.539][INFO][1fb400c00] [workload_iterators.py:627 WorkloadIterators.iterate_hybrid_parallel_transformer_fwd_in_bckwd()] 进入WorkloadIterators迭代器 - 当前状态: LoopState.Forward_Pass, 层索引: 0, 总层数: 2
+[2025-07-26 22:21:13.539][INFO][1fb400c00] [workload_iterators.py:630 WorkloadIterators.iterate_hybrid_parallel_transformer_fwd_in_bckwd()] === 处理前向传播阶段 - 层 0/1 ===
+[2025-07-26 22:21:13.539][INFO][1fb400c00] [workload_iterators.py:670 WorkloadIterators.iterate_hybrid_parallel_transformer_fwd_in_bckwd()] ⏭️ 前向传播继续，移动到第 1 层（共 2 层）
+[2025-07-26 22:21:13.539][INFO][1fb400c00] [sys.py:443 Sys.try_register_event()] try_register_event EventType EventType.General at tick 1112001.0
+[2025-07-26 22:21:13.539][INFO][1fb400c00] [sys.py:458 Sys.try_register_event()] 调度CallEvents到AnaSim，延迟: 1
+[2025-07-26 22:21:13.539][INFO][1fb400c00] [workload_base.py:169 Workload.call()] 工作负载接收事件: EventType.General, counter: 0
+[2025-07-26 22:21:13.539][INFO][1fb400c00] [workload_base.py:183 Workload.call()] 处理事件 - 调用迭代器
+[2025-07-26 22:21:13.539][INFO][1fb400c00] [workload_base.py:216 Workload.check_for_sim_end()] 🔍 check_for_sim_end: pass_counter=0, total_pass=1
+[2025-07-26 22:21:13.539][INFO][1fb400c00] [workload_iterators.py:626 WorkloadIterators.iterate_hybrid_parallel_transformer_fwd_in_bckwd()] Transformer前向反向混合并行迭代
+[2025-07-26 22:21:13.539][INFO][1fb400c00] [workload_iterators.py:627 WorkloadIterators.iterate_hybrid_parallel_transformer_fwd_in_bckwd()] 进入WorkloadIterators迭代器 - 当前状态: LoopState.Forward_Pass, 层索引: 1, 总层数: 2
+[2025-07-26 22:21:13.539][INFO][1fb400c00] [workload_iterators.py:630 WorkloadIterators.iterate_hybrid_parallel_transformer_fwd_in_bckwd()] === 处理前向传播阶段 - 层 1/1 ===
+[2025-07-26 22:21:13.539][INFO][1fb400c00] [workload_iterators.py:639 WorkloadIterators.iterate_hybrid_parallel_transformer_fwd_in_bckwd()] 层 1 设置前向计算时间: 556000.0
+[2025-07-26 22:21:13.539][INFO][1fb400c00] [workload_iterators.py:642 WorkloadIterators.iterate_hybrid_parallel_transformer_fwd_in_bckwd()] 层 1 注册前向计算等待事件，等待时间: 556000.0
+[2025-07-26 22:21:13.539][INFO][1fb400c00] [sys.py:443 Sys.try_register_event()] try_register_event EventType EventType.Workload_Wait at tick 1668001.0
+[2025-07-26 22:21:13.539][INFO][1fb400c00] [sys.py:458 Sys.try_register_event()] 调度CallEvents到AnaSim，延迟: 556000.0
+[2025-07-26 22:21:13.593][INFO][1fb400c00] [workload_base.py:169 Workload.call()] 工作负载接收事件: EventType.Workload_Wait, counter: 556000.0
+[2025-07-26 22:21:13.594][INFO][1fb400c00] [workload_base.py:173 Workload.call()] counter > 0，注册等待事件: 556000.0
+[2025-07-26 22:21:13.594][INFO][1fb400c00] [sys.py:443 Sys.try_register_event()] try_register_event EventType EventType.Workload_Wait at tick 2224001.0
+[2025-07-26 22:21:13.594][INFO][1fb400c00] [sys.py:458 Sys.try_register_event()] 调度CallEvents到AnaSim，延迟: 556000.0
+[2025-07-26 22:21:13.594][INFO][1fb400c00] [workload_base.py:179 Workload.call()] counter已清零，模拟C++版本的引用传递效果
+[2025-07-26 22:21:13.650][INFO][1fb400c00] [workload_base.py:169 Workload.call()] 工作负载接收事件: EventType.Workload_Wait, counter: 0
+[2025-07-26 22:21:13.650][INFO][1fb400c00] [workload_base.py:183 Workload.call()] 处理事件 - 调用迭代器
+[2025-07-26 22:21:13.650][INFO][1fb400c00] [workload_base.py:216 Workload.check_for_sim_end()] 🔍 check_for_sim_end: pass_counter=0, total_pass=1
+[2025-07-26 22:21:13.650][INFO][1fb400c00] [workload_iterators.py:626 WorkloadIterators.iterate_hybrid_parallel_transformer_fwd_in_bckwd()] Transformer前向反向混合并行迭代
+[2025-07-26 22:21:13.650][INFO][1fb400c00] [workload_iterators.py:627 WorkloadIterators.iterate_hybrid_parallel_transformer_fwd_in_bckwd()] 进入WorkloadIterators迭代器 - 当前状态: LoopState.Forward_Pass, 层索引: 1, 总层数: 2
+[2025-07-26 22:21:13.650][INFO][1fb400c00] [workload_iterators.py:630 WorkloadIterators.iterate_hybrid_parallel_transformer_fwd_in_bckwd()] === 处理前向传播阶段 - 层 1/1 ===
+[2025-07-26 22:21:13.650][INFO][1fb400c00] [workload_iterators.py:656 WorkloadIterators.iterate_hybrid_parallel_transformer_fwd_in_bckwd()] 层 1 发起前向传播通信，大小: 67108864.0
+[2025-07-26 22:21:13.650][INFO][1fb400c00] [layer_communication.py:29 Layer.issue_forward_pass_comm()] 层 1 (embedding_layer) 发起前向传播通信 - 类型: ComType.All_Reduce, 大小: 67108864.0, 策略: SchedulingPolicy.None_, 屏障: CollectiveBarrier.Blocking
+[2025-07-26 22:21:13.650][INFO][1fb400c00] [workload_base.py:169 Workload.call()] 工作负载接收事件: EventType.General, counter: 0
+[2025-07-26 22:21:13.650][INFO][1fb400c00] [workload_base.py:183 Workload.call()] 处理事件 - 调用迭代器
+[2025-07-26 22:21:13.650][INFO][1fb400c00] [workload_base.py:216 Workload.check_for_sim_end()] 🔍 check_for_sim_end: pass_counter=0, total_pass=1
+[2025-07-26 22:21:13.650][INFO][1fb400c00] [workload_iterators.py:626 WorkloadIterators.iterate_hybrid_parallel_transformer_fwd_in_bckwd()] Transformer前向反向混合并行迭代
+[2025-07-26 22:21:13.650][INFO][1fb400c00] [workload_iterators.py:627 WorkloadIterators.iterate_hybrid_parallel_transformer_fwd_in_bckwd()] 进入WorkloadIterators迭代器 - 当前状态: LoopState.Forward_Pass, 层索引: 1, 总层数: 2
+[2025-07-26 22:21:13.650][INFO][1fb400c00] [workload_iterators.py:630 WorkloadIterators.iterate_hybrid_parallel_transformer_fwd_in_bckwd()] === 处理前向传播阶段 - 层 1/1 ===
+[2025-07-26 22:21:13.650][INFO][1fb400c00] [workload_iterators.py:666 WorkloadIterators.iterate_hybrid_parallel_transformer_fwd_in_bckwd()] 🎉 前向传播阶段完成！所有 2 层已处理，切换到输入梯度阶段
+[2025-07-26 22:21:13.650][INFO][1fb400c00] [sys.py:443 Sys.try_register_event()] try_register_event EventType EventType.General at tick 2224002.0
+[2025-07-26 22:21:13.650][INFO][1fb400c00] [sys.py:458 Sys.try_register_event()] 调度CallEvents到AnaSim，延迟: 1
+[2025-07-26 22:21:13.650][INFO][1fb400c00] [workload_base.py:169 Workload.call()] 工作负载接收事件: EventType.General, counter: 0
+[2025-07-26 22:21:13.650][INFO][1fb400c00] [workload_base.py:183 Workload.call()] 处理事件 - 调用迭代器
+[2025-07-26 22:21:13.650][INFO][1fb400c00] [workload_base.py:216 Workload.check_for_sim_end()] 🔍 check_for_sim_end: pass_counter=0, total_pass=1
+[2025-07-26 22:21:13.650][INFO][1fb400c00] [workload_iterators.py:626 WorkloadIterators.iterate_hybrid_parallel_transformer_fwd_in_bckwd()] Transformer前向反向混合并行迭代
+[2025-07-26 22:21:13.650][INFO][1fb400c00] [workload_iterators.py:627 WorkloadIterators.iterate_hybrid_parallel_transformer_fwd_in_bckwd()] 进入WorkloadIterators迭代器 - 当前状态: LoopState.Input_Gradient, 层索引: 1, 总层数: 2
+[2025-07-26 22:21:13.650][INFO][1fb400c00] [workload_iterators.py:719 WorkloadIterators.iterate_hybrid_parallel_transformer_fwd_in_bckwd()] === 处理输入梯度阶段 - 层 1/1 ===
+[2025-07-26 22:21:13.650][INFO][1fb400c00] [workload_iterators.py:724 WorkloadIterators.iterate_hybrid_parallel_transformer_fwd_in_bckwd()] 层 1 设置输入梯度计算时间: 1.0
+[2025-07-26 22:21:13.650][INFO][1fb400c00] [workload_iterators.py:727 WorkloadIterators.iterate_hybrid_parallel_transformer_fwd_in_bckwd()] 层 1 注册输入梯度计算等待事件，等待时间: 1.0
+[2025-07-26 22:21:13.650][INFO][1fb400c00] [sys.py:443 Sys.try_register_event()] try_register_event EventType EventType.Workload_Wait at tick 2224003.0
+[2025-07-26 22:21:13.650][INFO][1fb400c00] [sys.py:458 Sys.try_register_event()] 调度CallEvents到AnaSim，延迟: 1.0
+[2025-07-26 22:21:13.650][INFO][1fb400c00] [workload_base.py:169 Workload.call()] 工作负载接收事件: EventType.Workload_Wait, counter: 1.0
+[2025-07-26 22:21:13.650][INFO][1fb400c00] [workload_base.py:173 Workload.call()] counter > 0，注册等待事件: 1.0
+[2025-07-26 22:21:13.650][INFO][1fb400c00] [sys.py:443 Sys.try_register_event()] try_register_event EventType EventType.Workload_Wait at tick 2224004.0
+[2025-07-26 22:21:13.650][INFO][1fb400c00] [sys.py:458 Sys.try_register_event()] 调度CallEvents到AnaSim，延迟: 1.0
+[2025-07-26 22:21:13.650][INFO][1fb400c00] [workload_base.py:179 Workload.call()] counter已清零，模拟C++版本的引用传递效果
+[2025-07-26 22:21:13.650][INFO][1fb400c00] [workload_base.py:169 Workload.call()] 工作负载接收事件: EventType.Workload_Wait, counter: 0
+[2025-07-26 22:21:13.650][INFO][1fb400c00] [workload_base.py:183 Workload.call()] 处理事件 - 调用迭代器
+[2025-07-26 22:21:13.650][INFO][1fb400c00] [workload_base.py:216 Workload.check_for_sim_end()] 🔍 check_for_sim_end: pass_counter=0, total_pass=1
+[2025-07-26 22:21:13.650][INFO][1fb400c00] [workload_iterators.py:626 WorkloadIterators.iterate_hybrid_parallel_transformer_fwd_in_bckwd()] Transformer前向反向混合并行迭代
+[2025-07-26 22:21:13.650][INFO][1fb400c00] [workload_iterators.py:627 WorkloadIterators.iterate_hybrid_parallel_transformer_fwd_in_bckwd()] 进入WorkloadIterators迭代器 - 当前状态: LoopState.Input_Gradient, 层索引: 1, 总层数: 2
+[2025-07-26 22:21:13.650][INFO][1fb400c00] [workload_iterators.py:719 WorkloadIterators.iterate_hybrid_parallel_transformer_fwd_in_bckwd()] === 处理输入梯度阶段 - 层 1/1 ===
+[2025-07-26 22:21:13.650][INFO][1fb400c00] [workload_iterators.py:737 WorkloadIterators.iterate_hybrid_parallel_transformer_fwd_in_bckwd()] 层 1 发起输入梯度通信
+[2025-07-26 22:21:13.650][INFO][1fb400c00] [layer_communication.py:160 Layer.issue_input_grad_comm()] 层 1 (embedding_layer) 发起输入梯度通信 - 类型: ComType.None_, 大小: 0.0, 策略: SchedulingPolicy.None_, 屏障: CollectiveBarrier.Non_Blocking
+[2025-07-26 22:21:13.650][INFO][1fb400c00] [workload_iterators.py:749 WorkloadIterators.iterate_hybrid_parallel_transformer_fwd_in_bckwd()] ⬅️ 输入梯度继续，移动到第 0 层
+[2025-07-26 22:21:13.650][INFO][1fb400c00] [sys.py:443 Sys.try_register_event()] try_register_event EventType EventType.General at tick 2224005.0
+[2025-07-26 22:21:13.650][INFO][1fb400c00] [sys.py:458 Sys.try_register_event()] 调度CallEvents到AnaSim，延迟: 1
+[2025-07-26 22:21:13.650][INFO][1fb400c00] [workload_base.py:169 Workload.call()] 工作负载接收事件: EventType.General, counter: 0
+[2025-07-26 22:21:13.650][INFO][1fb400c00] [workload_base.py:183 Workload.call()] 处理事件 - 调用迭代器
+[2025-07-26 22:21:13.650][INFO][1fb400c00] [workload_base.py:216 Workload.check_for_sim_end()] 🔍 check_for_sim_end: pass_counter=0, total_pass=1
+[2025-07-26 22:21:13.650][INFO][1fb400c00] [workload_iterators.py:626 WorkloadIterators.iterate_hybrid_parallel_transformer_fwd_in_bckwd()] Transformer前向反向混合并行迭代
+[2025-07-26 22:21:13.650][INFO][1fb400c00] [workload_iterators.py:627 WorkloadIterators.iterate_hybrid_parallel_transformer_fwd_in_bckwd()] 进入WorkloadIterators迭代器 - 当前状态: LoopState.Input_Gradient, 层索引: 0, 总层数: 2
+[2025-07-26 22:21:13.650][INFO][1fb400c00] [workload_iterators.py:719 WorkloadIterators.iterate_hybrid_parallel_transformer_fwd_in_bckwd()] === 处理输入梯度阶段 - 层 0/1 ===
+[2025-07-26 22:21:13.650][INFO][1fb400c00] [workload_iterators.py:724 WorkloadIterators.iterate_hybrid_parallel_transformer_fwd_in_bckwd()] 层 0 设置输入梯度计算时间: 1.0
+[2025-07-26 22:21:13.650][INFO][1fb400c00] [workload_iterators.py:727 WorkloadIterators.iterate_hybrid_parallel_transformer_fwd_in_bckwd()] 层 0 注册输入梯度计算等待事件，等待时间: 1.0
+[2025-07-26 22:21:13.650][INFO][1fb400c00] [sys.py:443 Sys.try_register_event()] try_register_event EventType EventType.Workload_Wait at tick 2224006.0
+[2025-07-26 22:21:13.650][INFO][1fb400c00] [sys.py:458 Sys.try_register_event()] 调度CallEvents到AnaSim，延迟: 1.0
+[2025-07-26 22:21:13.650][INFO][1fb400c00] [workload_base.py:169 Workload.call()] 工作负载接收事件: EventType.Workload_Wait, counter: 1.0
+[2025-07-26 22:21:13.650][INFO][1fb400c00] [workload_base.py:173 Workload.call()] counter > 0，注册等待事件: 1.0
+[2025-07-26 22:21:13.650][INFO][1fb400c00] [sys.py:443 Sys.try_register_event()] try_register_event EventType EventType.Workload_Wait at tick 2224007.0
+[2025-07-26 22:21:13.650][INFO][1fb400c00] [sys.py:458 Sys.try_register_event()] 调度CallEvents到AnaSim，延迟: 1.0
+[2025-07-26 22:21:13.650][INFO][1fb400c00] [workload_base.py:179 Workload.call()] counter已清零，模拟C++版本的引用传递效果
+[2025-07-26 22:21:13.650][INFO][1fb400c00] [workload_base.py:169 Workload.call()] 工作负载接收事件: EventType.Workload_Wait, counter: 0
+[2025-07-26 22:21:13.650][INFO][1fb400c00] [workload_base.py:183 Workload.call()] 处理事件 - 调用迭代器
+[2025-07-26 22:21:13.650][INFO][1fb400c00] [workload_base.py:216 Workload.check_for_sim_end()] 🔍 check_for_sim_end: pass_counter=0, total_pass=1
+[2025-07-26 22:21:13.650][INFO][1fb400c00] [workload_iterators.py:626 WorkloadIterators.iterate_hybrid_parallel_transformer_fwd_in_bckwd()] Transformer前向反向混合并行迭代
+[2025-07-26 22:21:13.650][INFO][1fb400c00] [workload_iterators.py:627 WorkloadIterators.iterate_hybrid_parallel_transformer_fwd_in_bckwd()] 进入WorkloadIterators迭代器 - 当前状态: LoopState.Input_Gradient, 层索引: 0, 总层数: 2
+[2025-07-26 22:21:13.650][INFO][1fb400c00] [workload_iterators.py:719 WorkloadIterators.iterate_hybrid_parallel_transformer_fwd_in_bckwd()] === 处理输入梯度阶段 - 层 0/1 ===
+[2025-07-26 22:21:13.650][INFO][1fb400c00] [workload_iterators.py:737 WorkloadIterators.iterate_hybrid_parallel_transformer_fwd_in_bckwd()] 层 0 发起输入梯度通信
+[2025-07-26 22:21:13.651][INFO][1fb400c00] [layer_communication.py:160 Layer.issue_input_grad_comm()] 层 0 (embedding_layer) 发起输入梯度通信 - 类型: ComType.None_, 大小: 0.0, 策略: SchedulingPolicy.None_, 屏障: CollectiveBarrier.Non_Blocking
+[2025-07-26 22:21:13.651][INFO][1fb400c00] [workload_iterators.py:745 WorkloadIterators.iterate_hybrid_parallel_transformer_fwd_in_bckwd()] 📉 输入梯度阶段完成！切换到权重梯度阶段
+[2025-07-26 22:21:13.651][INFO][1fb400c00] [sys.py:443 Sys.try_register_event()] try_register_event EventType EventType.General at tick 2224008.0
+[2025-07-26 22:21:13.651][INFO][1fb400c00] [sys.py:458 Sys.try_register_event()] 调度CallEvents到AnaSim，延迟: 1
+[2025-07-26 22:21:13.651][INFO][1fb400c00] [workload_base.py:169 Workload.call()] 工作负载接收事件: EventType.General, counter: 0
+[2025-07-26 22:21:13.651][INFO][1fb400c00] [workload_base.py:183 Workload.call()] 处理事件 - 调用迭代器
+[2025-07-26 22:21:13.651][INFO][1fb400c00] [workload_base.py:216 Workload.check_for_sim_end()] 🔍 check_for_sim_end: pass_counter=0, total_pass=1
+[2025-07-26 22:21:13.651][INFO][1fb400c00] [workload_iterators.py:626 WorkloadIterators.iterate_hybrid_parallel_transformer_fwd_in_bckwd()] Transformer前向反向混合并行迭代
+[2025-07-26 22:21:13.651][INFO][1fb400c00] [workload_iterators.py:627 WorkloadIterators.iterate_hybrid_parallel_transformer_fwd_in_bckwd()] 进入WorkloadIterators迭代器 - 当前状态: LoopState.Weight_Gradient, 层索引: 1, 总层数: 2
+[2025-07-26 22:21:13.651][INFO][1fb400c00] [workload_iterators.py:679 WorkloadIterators.iterate_hybrid_parallel_transformer_fwd_in_bckwd()] === 处理权重梯度阶段 - 层 1/1 ===
+[2025-07-26 22:21:13.651][INFO][1fb400c00] [workload_iterators.py:684 WorkloadIterators.iterate_hybrid_parallel_transformer_fwd_in_bckwd()] 层 1 设置权重梯度计算时间: 1.0
+[2025-07-26 22:21:13.651][INFO][1fb400c00] [workload_iterators.py:687 WorkloadIterators.iterate_hybrid_parallel_transformer_fwd_in_bckwd()] 层 1 注册权重梯度计算等待事件，等待时间: 1.0
+[2025-07-26 22:21:13.651][INFO][1fb400c00] [sys.py:443 Sys.try_register_event()] try_register_event EventType EventType.Workload_Wait at tick 2224009.0
+[2025-07-26 22:21:13.651][INFO][1fb400c00] [sys.py:458 Sys.try_register_event()] 调度CallEvents到AnaSim，延迟: 1.0
+[2025-07-26 22:21:13.651][INFO][1fb400c00] [workload_base.py:169 Workload.call()] 工作负载接收事件: EventType.Workload_Wait, counter: 1.0
+[2025-07-26 22:21:13.651][INFO][1fb400c00] [workload_base.py:173 Workload.call()] counter > 0，注册等待事件: 1.0
+[2025-07-26 22:21:13.651][INFO][1fb400c00] [sys.py:443 Sys.try_register_event()] try_register_event EventType EventType.Workload_Wait at tick 2224010.0
+[2025-07-26 22:21:13.651][INFO][1fb400c00] [sys.py:458 Sys.try_register_event()] 调度CallEvents到AnaSim，延迟: 1.0
+[2025-07-26 22:21:13.651][INFO][1fb400c00] [workload_base.py:179 Workload.call()] counter已清零，模拟C++版本的引用传递效果
+[2025-07-26 22:21:13.651][INFO][1fb400c00] [workload_base.py:169 Workload.call()] 工作负载接收事件: EventType.Workload_Wait, counter: 0
+[2025-07-26 22:21:13.651][INFO][1fb400c00] [workload_base.py:183 Workload.call()] 处理事件 - 调用迭代器
+[2025-07-26 22:21:13.651][INFO][1fb400c00] [workload_base.py:216 Workload.check_for_sim_end()] 🔍 check_for_sim_end: pass_counter=0, total_pass=1
+[2025-07-26 22:21:13.651][INFO][1fb400c00] [workload_iterators.py:626 WorkloadIterators.iterate_hybrid_parallel_transformer_fwd_in_bckwd()] Transformer前向反向混合并行迭代
+[2025-07-26 22:21:13.651][INFO][1fb400c00] [workload_iterators.py:627 WorkloadIterators.iterate_hybrid_parallel_transformer_fwd_in_bckwd()] 进入WorkloadIterators迭代器 - 当前状态: LoopState.Weight_Gradient, 层索引: 1, 总层数: 2
+[2025-07-26 22:21:13.651][INFO][1fb400c00] [workload_iterators.py:679 WorkloadIterators.iterate_hybrid_parallel_transformer_fwd_in_bckwd()] === 处理权重梯度阶段 - 层 1/1 ===
+[2025-07-26 22:21:13.651][INFO][1fb400c00] [workload_iterators.py:693 WorkloadIterators.iterate_hybrid_parallel_transformer_fwd_in_bckwd()] 层 1 发起权重梯度通信
+[2025-07-26 22:21:13.651][INFO][1fb400c00] [layer_communication.py:288 Layer.issue_weight_grad_comm()] 层 1 (embedding_layer) 发起权重梯度通信 - 类型: ComType.None_, 大小: 0.0, 策略: SchedulingPolicy.None_, 屏障: CollectiveBarrier.Non_Blocking
+[2025-07-26 22:21:13.651][INFO][1fb400c00] [workload_iterators.py:712 WorkloadIterators.iterate_hybrid_parallel_transformer_fwd_in_bckwd()] 权重梯度递减到层 0，继续权重梯度阶段
+[2025-07-26 22:21:13.651][INFO][1fb400c00] [sys.py:443 Sys.try_register_event()] try_register_event EventType EventType.General at tick 2224011.0
+[2025-07-26 22:21:13.651][INFO][1fb400c00] [sys.py:458 Sys.try_register_event()] 调度CallEvents到AnaSim，延迟: 1
+[2025-07-26 22:21:13.651][INFO][1fb400c00] [workload_base.py:169 Workload.call()] 工作负载接收事件: EventType.General, counter: 0
+[2025-07-26 22:21:13.651][INFO][1fb400c00] [workload_base.py:183 Workload.call()] 处理事件 - 调用迭代器
+[2025-07-26 22:21:13.651][INFO][1fb400c00] [workload_base.py:216 Workload.check_for_sim_end()] 🔍 check_for_sim_end: pass_counter=0, total_pass=1
+[2025-07-26 22:21:13.651][INFO][1fb400c00] [workload_iterators.py:626 WorkloadIterators.iterate_hybrid_parallel_transformer_fwd_in_bckwd()] Transformer前向反向混合并行迭代
+[2025-07-26 22:21:13.651][INFO][1fb400c00] [workload_iterators.py:627 WorkloadIterators.iterate_hybrid_parallel_transformer_fwd_in_bckwd()] 进入WorkloadIterators迭代器 - 当前状态: LoopState.Weight_Gradient, 层索引: 0, 总层数: 2
+[2025-07-26 22:21:13.651][INFO][1fb400c00] [workload_iterators.py:679 WorkloadIterators.iterate_hybrid_parallel_transformer_fwd_in_bckwd()] === 处理权重梯度阶段 - 层 0/1 ===
+[2025-07-26 22:21:13.651][INFO][1fb400c00] [workload_iterators.py:684 WorkloadIterators.iterate_hybrid_parallel_transformer_fwd_in_bckwd()] 层 0 设置权重梯度计算时间: 1.0
+[2025-07-26 22:21:13.651][INFO][1fb400c00] [workload_iterators.py:687 WorkloadIterators.iterate_hybrid_parallel_transformer_fwd_in_bckwd()] 层 0 注册权重梯度计算等待事件，等待时间: 1.0
+[2025-07-26 22:21:13.651][INFO][1fb400c00] [sys.py:443 Sys.try_register_event()] try_register_event EventType EventType.Workload_Wait at tick 2224012.0
+[2025-07-26 22:21:13.651][INFO][1fb400c00] [sys.py:458 Sys.try_register_event()] 调度CallEvents到AnaSim，延迟: 1.0
+[2025-07-26 22:21:13.651][INFO][1fb400c00] [workload_base.py:169 Workload.call()] 工作负载接收事件: EventType.Workload_Wait, counter: 1.0
+[2025-07-26 22:21:13.651][INFO][1fb400c00] [workload_base.py:173 Workload.call()] counter > 0，注册等待事件: 1.0
+[2025-07-26 22:21:13.651][INFO][1fb400c00] [sys.py:443 Sys.try_register_event()] try_register_event EventType EventType.Workload_Wait at tick 2224013.0
+[2025-07-26 22:21:13.651][INFO][1fb400c00] [sys.py:458 Sys.try_register_event()] 调度CallEvents到AnaSim，延迟: 1.0
+[2025-07-26 22:21:13.651][INFO][1fb400c00] [workload_base.py:179 Workload.call()] counter已清零，模拟C++版本的引用传递效果
+[2025-07-26 22:21:13.651][INFO][1fb400c00] [workload_base.py:169 Workload.call()] 工作负载接收事件: EventType.Workload_Wait, counter: 0
+[2025-07-26 22:21:13.651][INFO][1fb400c00] [workload_base.py:183 Workload.call()] 处理事件 - 调用迭代器
+[2025-07-26 22:21:13.651][INFO][1fb400c00] [workload_base.py:216 Workload.check_for_sim_end()] 🔍 check_for_sim_end: pass_counter=0, total_pass=1
+[2025-07-26 22:21:13.651][INFO][1fb400c00] [workload_iterators.py:626 WorkloadIterators.iterate_hybrid_parallel_transformer_fwd_in_bckwd()] Transformer前向反向混合并行迭代
+[2025-07-26 22:21:13.651][INFO][1fb400c00] [workload_iterators.py:627 WorkloadIterators.iterate_hybrid_parallel_transformer_fwd_in_bckwd()] 进入WorkloadIterators迭代器 - 当前状态: LoopState.Weight_Gradient, 层索引: 0, 总层数: 2
+[2025-07-26 22:21:13.651][INFO][1fb400c00] [workload_iterators.py:679 WorkloadIterators.iterate_hybrid_parallel_transformer_fwd_in_bckwd()] === 处理权重梯度阶段 - 层 0/1 ===
+[2025-07-26 22:21:13.651][INFO][1fb400c00] [workload_iterators.py:693 WorkloadIterators.iterate_hybrid_parallel_transformer_fwd_in_bckwd()] 层 0 发起权重梯度通信
+[2025-07-26 22:21:13.651][INFO][1fb400c00] [layer_communication.py:288 Layer.issue_weight_grad_comm()] 层 0 (embedding_layer) 发起权重梯度通信 - 类型: ComType.None_, 大小: 0.0, 策略: SchedulingPolicy.None_, 屏障: CollectiveBarrier.Non_Blocking
+[2025-07-26 22:21:13.651][INFO][1fb400c00] [workload_iterators.py:699 WorkloadIterators.iterate_hybrid_parallel_transformer_fwd_in_bckwd()] 🏁 权重梯度阶段完成！第 0 轮完成于时间: 2224013.0
+[2025-07-26 22:21:13.651][INFO][1fb400c00] [workload_iterators.py:703 WorkloadIterators.iterate_hybrid_parallel_transformer_fwd_in_bckwd()] 开始第 1 轮，返回前向传播阶段
+[2025-07-26 22:21:13.651][INFO][1fb400c00] [workload_base.py:216 Workload.check_for_sim_end()] 🔍 check_for_sim_end: pass_counter=1, total_pass=1
+[2025-07-26 22:21:13.651][INFO][1fb400c00] [workload_base.py:219 Workload.check_for_sim_end()] ✅ 达到总轮次，设置状态为Wait_For_Sim_Finish
+[2025-07-26 22:21:13.651][INFO][1fb400c00] [workload_base.py:222 Workload.check_for_sim_end()] 🔍 streams状态: finished=0, injected=0
+[2025-07-26 22:21:13.651][INFO][1fb400c00] [workload_base.py:233 Workload.check_for_sim_end()] 🎉 流已完成，开始生成报告
+[2025-07-26 22:21:13.651][INFO][1fb400c00] [workload_reporting.py:28 WorkloadReporting.report()] 📊 开始生成工作负载报告
+[2025-07-26 22:21:13.651][INFO][1fb400c00] [workload_reporting.py:45 WorkloadReporting.report()] 📊 创建AstraSimDataAPI对象
+[2025-07-26 22:21:13.651][INFO][1fb400c00] [workload_reporting.py:49 WorkloadReporting.report()] 📊 AstraSimDataAPI对象创建成功
+[2025-07-26 22:21:13.651][INFO][1fb400c00] [workload_reporting.py:52 WorkloadReporting.report()] 📊 设置run_name: Analytical_test
+[2025-07-26 22:21:13.651][INFO][1fb400c00] [workload_reporting.py:56 WorkloadReporting.report()] 📊 获取当前tick: 2224013.0
+[2025-07-26 22:21:13.651][INFO][1fb400c00] [workload_reporting.py:58 WorkloadReporting.report()] 📊 使用FREQ常量: 1000.0
+[2025-07-26 22:21:13.651][INFO][1fb400c00] [workload_reporting.py:61 WorkloadReporting.report()] 📊 计算完成时间: 2224.013
+[2025-07-26 22:21:13.651][INFO][1fb400c00] [workload_reporting.py:69 WorkloadReporting.report()] 📊 开始收集 2 层的统计信息
+[2025-07-26 22:21:13.651][INFO][1fb400c00] [workload_reporting.py:73 WorkloadReporting.report()] 📊 处理第 0 层报告
+[2025-07-26 22:21:13.652][INFO][1fb400c00] [workload_reporting.py:90 WorkloadReporting.report()] ✅ 第 0 层报告完成，累计时间: 556.002
+[2025-07-26 22:21:13.652][INFO][1fb400c00] [workload_reporting.py:73 WorkloadReporting.report()] 📊 处理第 1 层报告
+[2025-07-26 22:21:13.652][INFO][1fb400c00] [workload_reporting.py:90 WorkloadReporting.report()] ✅ 第 1 层报告完成，累计时间: 1112.004
+[2025-07-26 22:21:13.652][INFO][1fb400c00] [workload_reporting.py:95 WorkloadReporting.report()] 📊 设置总统计信息
+[2025-07-26 22:21:13.652][INFO][1fb400c00] [workload_reporting.py:101 WorkloadReporting.report()] 📊 获取平均延迟信息
+[2025-07-26 22:21:13.652][INFO][1fb400c00] [workload_reporting.py:116 WorkloadReporting.report()] 📊 调用网络接口报告
+[2025-07-26 22:21:13.652][INFO][1fb400c00] [workload_reporting.py:121 WorkloadReporting.report()] 📊 处理维度利用率报告, separate_log=True
+[2025-07-26 22:21:13.652][INFO][1fb400c00] [workload_reporting.py:128 WorkloadReporting.report()] 📊 有 1 个使用维度
+[2025-07-26 22:21:13.652][INFO][1fb400c00] [workload_reporting.py:132 WorkloadReporting.report()] 📊 维度 0 报告数据长度: 222
+[2025-07-26 22:21:13.652][INFO][1fb400c00] [workload_reporting.py:135 WorkloadReporting.report()] 📊 开始写入dimension_utilization CSV
+[2025-07-26 22:21:13.653][INFO][1fb400c00] [workload_reporting.py:139 WorkloadReporting.report()] ❌ 维度利用率报告失败: 2 columns passed, passed data had 1 columns

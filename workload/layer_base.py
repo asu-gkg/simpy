@@ -145,6 +145,11 @@ class LayerBase(Callable, StreamStat):
         self.collective_counter = 0
         self.lookup_table_size = 0
         
+        # 报告相关的统计属性 - 对应C++版本的Layer类
+        self.queuing_delay: List[float] = []
+        self.network_message_delay: List[float] = []
+        self.net_message_latency: List[float] = []
+        
         assert generator is not None
     
     def get_fwd_pass_compute(self) -> Tick:

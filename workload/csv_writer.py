@@ -14,9 +14,16 @@ class CSVWriter:
         os.makedirs(path, exist_ok=True)
         self.df = None  # 用于缓存DataFrame
         self.initialized = False
+        self._closed = False
 
     def __del__(self):
         self._save_and_close()
+
+    def close(self):
+        """显式关闭并保存文件"""
+        if not self._closed:
+            self._save_and_close()
+            self._closed = True
 
     def _save_and_close(self):
         if self.df is not None:
@@ -28,6 +35,9 @@ class CSVWriter:
         """
         初始化CSV文件（只清空文件，不写表头，行为与C++一致）
         """
+        if self._closed:
+            return
+            
         # 只清空文件
         open(self.file_path, 'w').close()
         self.df = pd.DataFrame(index=range(rows), columns=range(cols))
@@ -37,6 +47,9 @@ class CSVWriter:
         """
         精确写入某个单元格
         """
+        if self._closed:
+            return
+            
         if not self.initialized or self.df is None:
             # 尝试加载
             if os.path.exists(self.file_path):
@@ -44,13 +57,10 @@ class CSVWriter:
                 self.df.index = range(len(self.df))
                 self.initialized = True
             else:
-                print("CSV文件未初始化")
-                return
-        try:
-            self.df.iat[row, column] = data
-            self.df.to_csv(self.file_path, index=False)
-        except Exception as e:
-            print(f"写入单元格时出错: {e}")
+                raise RuntimeError("CSV文件未初始化")
+                
+        self.df.iat[row, column] = data
+        self.df.to_csv(self.file_path, index=False)
 
     def write_line(self, data: str):
         """
@@ -77,6 +87,9 @@ class CSVWriter:
         """
         写入表头（时间、各维度util），并对齐多维数据（与C++一致）
         """
+        if self._closed:
+            return
+            
         # 生成表头
         dim_num = 1
         header = ["time (us)"] + [f"dim{dim_num+i} util" for i in range(len(dims))]

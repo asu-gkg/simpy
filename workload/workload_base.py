@@ -124,11 +124,15 @@ class Workload(Callable):
         析构函数 - 对应C++析构函数
         Workload::~Workload()
         """
-        if self.end_to_end:
+        # 显式关闭CSV文件
+        if hasattr(self, 'end_to_end') and self.end_to_end:
+            self.end_to_end.close()
             del self.end_to_end
-        if self.detailed:
+        if hasattr(self, 'detailed') and self.detailed:
+            self.detailed.close()
             del self.detailed
-        if self.dimension_utilization:
+        if hasattr(self, 'dimension_utilization') and self.dimension_utilization:
+            self.dimension_utilization.close()
             del self.dimension_utilization
         for layer in self.layers:
             del layer
@@ -206,16 +210,27 @@ class Workload(Callable):
         检查仿真是否结束 - 对应C++函数
         void Workload::check_for_sim_end()
         """
+        from system.mock_nccl_log import MockNcclLog, NcclLogLevel
+        log = MockNcclLog.getInstance()
+        
+        log.writeLog(NcclLogLevel.INFO, f"🔍 check_for_sim_end: pass_counter={self.pass_counter}, total_pass={self.total_pass}")
+        
         if self.pass_counter == self.total_pass:
+            log.writeLog(NcclLogLevel.INFO, f"✅ 达到总轮次，设置状态为Wait_For_Sim_Finish")
             self.current_state = LoopState.Wait_For_Sim_Finish
+            
+            log.writeLog(NcclLogLevel.INFO, f"🔍 streams状态: finished={self.generator.streams_finished}, injected={self.generator.streams_injected}")
+            
             if (self.generator.streams_finished != self.generator.streams_injected and
                 not self.registered_for_finished_streams):
+                log.writeLog(NcclLogLevel.INFO, f"⏳ 等待流完成，注册监听器")
                 self.generator.register_for_finished_stream(self)
                 self.registered_for_finished_streams = True
                 self.layers[0].is_weight_grad_comm_finished_blocking()
                 return
             
             if self.generator.streams_finished == self.generator.streams_injected:
+                log.writeLog(NcclLogLevel.INFO, f"🎉 流已完成，开始生成报告")
                 if self.generator.id == 0:
                     self.reporting.report()
                 self.generator.workload_finished()
