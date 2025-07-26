@@ -1,1 +1,1 @@
-# System module for SimAI astrasim Python implementation 
+# System package 

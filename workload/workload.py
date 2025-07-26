@@ -1,8 +1,7 @@
-# Workload class - corresponds to Workload.cc/Workload.hh in SimAI 
+# Workload类 - 对应Workload.cc/Workload.hh in SimAI 
+# 这个文件现在是一个简化的入口点，主要功能已经拆分到其他模块中
 
-class Workload:
-    def __init__(self):
-        pass
+from .workload_base import Workload
 
-    def run(self):
-        pass
+# 为了向后兼容，直接导出Workload类
+__all__ = ['Workload'] 

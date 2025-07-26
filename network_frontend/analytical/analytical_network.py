@@ -2,7 +2,7 @@
 
 from typing import Callable, Any, List
 from system.api import (
-    AstraNetworkAPI, TimeSpec, TimeType, SimRequest, SimComm, 
+    AstraNetworkAPI, TimeSpec, TimeType, SimComm, SimRequest,
     AstraMemoryAPI, BackendType
 )
 from .ana_sim import AnaSim
