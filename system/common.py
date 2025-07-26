@@ -162,6 +162,37 @@ class ReqType(Enum):
     BFLOAT16 = "BFLOAT16"
     FP32 = "FP32"
 
+class TimeType(Enum):
+    """时间类型枚举 - 对应AstraNetworkAPI.hh中的time_type_e"""
+    SE = "SE"
+    MS = "MS"
+    US = "US"
+    NS = "NS"
+    FS = "FS"
+
+class TimeSpec:
+    """时间规格结构体 - 对应AstraNetworkAPI.hh中的timespec_t"""
+    def __init__(self, time_res: TimeType = TimeType.NS, time_val: float = 0.0):
+        self.time_res = time_res
+        self.time_val = time_val
+
+class SimComm:
+    """模拟通信结构体 - 对应AstraNetworkAPI.hh中的sim_comm"""
+    def __init__(self, comm_name: str = ""):
+        self.comm_name = comm_name
+
+class MetaData:
+    """元数据类 - 对应AstraNetworkAPI.hh中的MetaData"""
+    def __init__(self, timestamp: TimeSpec = None):
+        self.timestamp = timestamp if timestamp is not None else TimeSpec()
+
+class BackendType(Enum):
+    """后端类型枚举 - 对应AstraNetworkAPI.hh中的BackendType"""
+    NotSpecified = "NotSpecified"
+    Garnet = "Garnet"
+    NS3 = "NS3"
+    Analytical = "Analytical"
+
 class NcclFlowTag:
     """NCCL flow tag - corresponds to ncclFlowTag struct in C++"""
     
@@ -197,6 +228,31 @@ class SimRequest:
         self.vnet = vnet
         self.layerNum = layer_num
         self.flowTag = flow_tag if flow_tag is not None else NcclFlowTag()
+
+# 以下类对应Common.hh中的接口类
+class CloneInterface:
+    """克隆接口基类 - 对应Common.hh中的CloneInterface"""
+    def clone(self):
+        """创建对象的克隆副本"""
+        raise NotImplementedError("子类必须实现clone方法")
+
+class CollectiveImplementation(CloneInterface):
+    """集合通信实现基类 - 对应Common.hh中的CollectiveImplementation"""
+    def __init__(self, implementation_type: CollectiveImplementationType):
+        self.type = implementation_type
+    
+    def clone(self):
+        return CollectiveImplementation(self.type)
+
+class DirectCollectiveImplementation(CollectiveImplementation):
+    """直接集合通信实现 - 对应Common.hh中的DirectCollectiveImplementation"""
+    def __init__(self, implementation_type: CollectiveImplementationType, 
+                 direct_collective_window: int):
+        super().__init__(implementation_type)
+        self.direct_collective_window = direct_collective_window
+    
+    def clone(self):
+        return DirectCollectiveImplementation(self.type, self.direct_collective_window)
 
 # 辅助函数
 def comtype_to_coll(comtype: ComType) -> str:

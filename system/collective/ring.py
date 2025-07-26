@@ -8,7 +8,6 @@ from ..callable import CallData
 
 if TYPE_CHECKING:
     from ..topology.ring_topology import RingTopology
-    from ..my_packet import MyPacket
     from ..callable import Callable
 
 
@@ -118,8 +117,8 @@ class Ring(Algorithm):
             self.msg_size = data_size // self.nodes_in_ring
         
         # Packet lists
-        self.packets: List['MyPacket'] = []
-        self.locked_packets: List['MyPacket'] = []
+        self.packets: List = []
+        self.locked_packets: List = []
         
         # State flags
         self.processed = False
@@ -156,8 +155,7 @@ class Ring(Algorithm):
         """Release packets for transmission"""
         # Set notifier for packets
         for packet in self.locked_packets:
-            if hasattr(packet, 'set_notifier'):
-                packet.set_notifier(self)
+            packet.set_notifier(self)
         
         # Create packet bundle and send
         if hasattr(self.stream, 'owner'):
@@ -229,13 +227,14 @@ class Ring(Algorithm):
             self.toggle = not self.toggle
         
         if self.zero_latency_packets > 0:
-            # Create MyPacket equivalent
-            packet = {
-                'queue_id': self.stream.current_queue_id if self.stream else 0,
-                'sender_id': self.current_sender,
-                'receiver_id': self.current_receiver,
-                'sender': sender
-            }
+            # Create MyPacket
+            from ..my_packet import MyPacket
+            packet = MyPacket.create_basic(
+                self.stream.current_queue_id if self.stream else 0,
+                self.current_sender,
+                self.current_receiver
+            )
+            packet.sender = sender
             self.packets.append(packet)
             self.locked_packets.append(packet)
             self.processed = False
@@ -244,13 +243,14 @@ class Ring(Algorithm):
             self.process_max_count()
             self.zero_latency_packets -= 1
         elif self.non_zero_latency_packets > 0:
-            # Create MyPacket equivalent
-            packet = {
-                'queue_id': self.stream.current_queue_id if self.stream else 0,
-                'sender_id': self.current_sender,
-                'receiver_id': self.current_receiver,
-                'sender': sender
-            }
+            # Create MyPacket
+            from ..my_packet import MyPacket
+            packet = MyPacket.create_basic(
+                self.stream.current_queue_id if self.stream else 0,
+                self.current_sender,
+                self.current_receiver
+            )
+            packet.sender = sender
             self.packets.append(packet)
             self.locked_packets.append(packet)
             

@@ -396,15 +396,16 @@ class NcclTreeFlowModel(Algorithm):
         
         if self.zero_latency_packets.get(channel_id, 0) > 0:
             # Create packet
-            packet = {
-                'queue_id': self.stream.current_queue_id if self.stream else 0,
-                'sender_id': current_sender,
-                'receiver_id': current_receiver,
-                'msg_size': message_size,
-                'channel_id': channel_id,
-                'flow_id': flow_id,
-                'sender': None
-            }
+            from ..my_packet import MyPacket
+            packet = MyPacket.create_with_flow(
+                self.stream.current_queue_id if self.stream else 0,
+                current_sender,
+                current_receiver,
+                message_size,
+                channel_id,
+                flow_id
+            )
+            packet.sender = None
             
             self.packets[(channel_id, flow_id)].append(packet)
             self.processed = False
@@ -415,15 +416,16 @@ class NcclTreeFlowModel(Algorithm):
             
         elif self.non_zero_latency_packets.get(channel_id, 0) > 0:
             # Create packet
-            packet = {
-                'queue_id': self.stream.current_queue_id if self.stream else 0,
-                'sender_id': current_sender,
-                'receiver_id': current_receiver,
-                'msg_size': message_size,
-                'channel_id': channel_id,
-                'flow_id': flow_id,
-                'sender': None
-            }
+            from ..my_packet import MyPacket
+            packet = MyPacket.create_with_flow(
+                self.stream.current_queue_id if self.stream else 0,
+                current_sender,
+                current_receiver,
+                message_size,
+                channel_id,
+                flow_id
+            )
+            packet.sender = None
             
             self.packets[(channel_id, flow_id)].append(packet)
             
