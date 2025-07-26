@@ -148,12 +148,12 @@ class EventType(Enum):
     NotInitialized = "NotInitialized"
 
 class ParallelStrategy(Enum):
+    NONE = "NONE"
     TP = "TP"
     DP = "DP"
     PP = "PP"
     EP = "EP"
     DP_EP = "DP_EP"
-    NONE = "NONE"
 
 # Simulation request types - corresponds to AstraNetworkAPI.hh
 class ReqType(Enum):

@@ -658,6 +658,7 @@ class WorkloadIterators:
                     SchedulingPolicy.None_, CollectiveBarrier.Blocking)
                 return
             
+            # 通信已发起，继续处理下一步（对应C++版本的第二次调用）
             self.workload.index += 1
             self.workload.delay_loaded = False
             self.workload.collective_issued = False
@@ -693,14 +694,23 @@ class WorkloadIterators:
             self.workload.layers[self.workload.index].issue_weight_grad_comm(
                 SchedulingPolicy.None_, CollectiveBarrier.Non_Blocking)
             
+            # 关键修复：在权重梯度阶段需要递减index
             if self.workload.index == 0:
                 NcclLog.writeLog(NcclLogLevel.INFO, f"🏁 权重梯度阶段完成！第 {self.workload.pass_counter} 轮完成于时间: {self.workload.generator.boostedTick()}")
                 self.workload.pass_counter += 1
                 self.workload.current_state = LoopState.Forward_Pass
+                self.workload.index = 0  # 重置index为0开始下一轮
                 NcclLog.writeLog(NcclLogLevel.INFO, f"开始第 {self.workload.pass_counter} 轮，返回前向传播阶段")
+                # 检查模拟是否应该结束
+                self.workload.check_for_sim_end()
+                if self.workload.current_state == LoopState.Wait_For_Sim_Finish:
+                    NcclLog.writeLog(NcclLogLevel.INFO, f"🎊 所有轮次完成！模拟结束")
+                    return
             else:
-                NcclLog.writeLog(NcclLogLevel.INFO, f"权重梯度继续，切换到输入梯度阶段")
-                self.workload.current_state = LoopState.Input_Gradient
+                # 权重梯度阶段处理后，递减index
+                self.workload.index -= 1
+                NcclLog.writeLog(NcclLogLevel.INFO, f"权重梯度递减到层 {self.workload.index}，继续权重梯度阶段")
+                # 保持在权重梯度阶段继续处理下一层
             
             self.workload.generator.register_event(self.workload, EventType.General, None, 1)
             return

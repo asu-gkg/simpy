@@ -142,6 +142,11 @@ class Sys(Callable):
         self.ngpus_per_node = ngpus_per_node
         self.gpu_type = gpu_type
         
+        # 设置分析模式标志 - 修复分析模式下的事件死循环问题
+        # 检查NI的类名来确定是否为分析模式，避免循环导入
+        self.analytical_mode = (NI is not None and 
+                            NI.__class__.__name__ == 'AnalyticalNetwork')
+        
         # Initialize member variables to None first (like C++)
         self.scheduler_unit: Optional[self.SchedulerUnit] = None
         self.workload: Optional[Workload] = None
