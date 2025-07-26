@@ -627,19 +627,19 @@ class WorkloadIterators:
         NcclLog.writeLog(NcclLogLevel.INFO, f"进入WorkloadIterators迭代器 - 当前状态: {self.workload.current_state}, 层索引: {self.workload.index}, 总层数: {self.workload.size}")
         
         if self.workload.current_state == LoopState.Forward_Pass:
-            NcclLog.writeLog(NcclLogLevel.INFO, f"处理前向传播阶段 - 层 {self.workload.index}")
+            NcclLog.writeLog(NcclLogLevel.INFO, f"=== 处理前向传播阶段 - 层 {self.workload.index}/{self.workload.size-1} ===")
             
             if not self.workload.layers[self.workload.index].is_weight_grad_comm_finished_blocking():
-                NcclLog.writeLog(NcclLogLevel.INFO, f"等待层 {self.workload.index} 的权重梯度通信完成")
+                NcclLog.writeLog(NcclLogLevel.INFO, f"层 {self.workload.index} 权重梯度通信未完成，等待中...")
                 return
-            
+                
             if not self.workload.delay_loaded:
                 self.workload.counter = self.workload.layers[self.workload.index].get_fwd_pass_compute()
                 self.workload.delay_loaded = True
-                NcclLog.writeLog(NcclLogLevel.INFO, f"设置层 {self.workload.index} 前向计算时间: {self.workload.counter}")
+                NcclLog.writeLog(NcclLogLevel.INFO, f"层 {self.workload.index} 设置前向计算时间: {self.workload.counter}")
             
             if self.workload.counter > 0:
-                NcclLog.writeLog(NcclLogLevel.INFO, f"注册层 {self.workload.index} 前向计算等待事件，等待时间: {self.workload.counter}")
+                NcclLog.writeLog(NcclLogLevel.INFO, f"层 {self.workload.index} 注册前向计算等待事件，等待时间: {self.workload.counter}")
                 self.workload.generator.try_register_event(
                     self.workload, EventType.Workload_Wait, None, self.workload.counter)
                 return
@@ -651,9 +651,9 @@ class WorkloadIterators:
                     self.workload.layers[self.workload.index].fwd_pass_comm_size > 0):
                     old_size = self.workload.layers[self.workload.index].fwd_pass_comm_size
                     self.workload.layers[self.workload.index].fwd_pass_comm_size = 4096
-                    NcclLog.writeLog(NcclLogLevel.INFO, f"调整层 {self.workload.index} 前向通信大小: {old_size} -> 4096")
+                    NcclLog.writeLog(NcclLogLevel.INFO, f"层 {self.workload.index} 调整前向通信大小: {old_size} -> 4096")
                 
-                NcclLog.writeLog(NcclLogLevel.INFO, f"发起层 {self.workload.index} 前向传播通信，大小: {self.workload.layers[self.workload.index].fwd_pass_comm_size}")
+                NcclLog.writeLog(NcclLogLevel.INFO, f"层 {self.workload.index} 发起前向传播通信，大小: {self.workload.layers[self.workload.index].fwd_pass_comm_size}")
                 self.workload.layers[self.workload.index].issue_forward_pass_comm(
                     SchedulingPolicy.None_, CollectiveBarrier.Blocking)
                 return
@@ -662,11 +662,11 @@ class WorkloadIterators:
             self.workload.delay_loaded = False
             self.workload.collective_issued = False
             if self.workload.index >= self.workload.size:
-                NcclLog.writeLog(NcclLogLevel.INFO, "前向传播阶段完成，切换到输入梯度阶段")
+                NcclLog.writeLog(NcclLogLevel.INFO, f"🎉 前向传播阶段完成！所有 {self.workload.size} 层已处理，切换到输入梯度阶段")
                 self.workload.current_state = LoopState.Input_Gradient
                 self.workload.index -= 1
             else:
-                NcclLog.writeLog(NcclLogLevel.INFO, f"前向传播继续，移动到下一层: {self.workload.index}")
+                NcclLog.writeLog(NcclLogLevel.INFO, f"⏭️ 前向传播继续，移动到第 {self.workload.index} 层（共 {self.workload.size} 层）")
             
             # 添加日志记录 - 对应C++版本
             NcclLog.writeLog(NcclLogLevel.DEBUG, "workload::call fwd_pass register_event EventType::General ")
@@ -675,89 +675,69 @@ class WorkloadIterators:
             return
             
         elif self.workload.current_state == LoopState.Weight_Gradient:
-            NcclLog.writeLog(NcclLogLevel.INFO, f"处理权重梯度阶段 - 层 {self.workload.index}")
+            NcclLog.writeLog(NcclLogLevel.INFO, f"=== 处理权重梯度阶段 - 层 {self.workload.index}/{self.workload.size-1} ===")
             
             if not self.workload.delay_loaded:
                 self.workload.counter = self.workload.layers[self.workload.index].get_weight_grad_compute()
                 self.workload.delay_loaded = True
-                NcclLog.writeLog(NcclLogLevel.INFO, f"设置层 {self.workload.index} 权重梯度计算时间: {self.workload.counter}")
+                NcclLog.writeLog(NcclLogLevel.INFO, f"层 {self.workload.index} 设置权重梯度计算时间: {self.workload.counter}")
             
             if self.workload.counter > 0:
-                NcclLog.writeLog(NcclLogLevel.INFO, f"注册层 {self.workload.index} 权重梯度计算等待事件，等待时间: {self.workload.counter}")
+                NcclLog.writeLog(NcclLogLevel.INFO, f"层 {self.workload.index} 注册权重梯度计算等待事件，等待时间: {self.workload.counter}")
                 self.workload.generator.try_register_event(
                     self.workload, EventType.Workload_Wait, None, self.workload.counter)
                 return
             
-            if not self.workload.collective_issued:
-                self.workload.collective_issued = True
-                NcclLog.writeLog(NcclLogLevel.INFO, f"发起层 {self.workload.index} 权重梯度通信")
-                self.workload.layers[self.workload.index].issue_weight_grad_comm(
-                    SchedulingPolicy.FIFO, CollectiveBarrier.Non_Blocking)
-            
-            if not self.workload.layers[self.workload.index].is_input_grad_comm_finished_blocking():
-                NcclLog.writeLog(NcclLogLevel.INFO, f"等待层 {self.workload.index} 的输入梯度通信完成")
-                return
-            
-            self.workload.collective_issued = False
             self.workload.delay_loaded = False
-            if self.workload.index >= 0:
-                self.workload.index -= 1
-            if self.workload.index == -1:
-                self.workload.index = 0
-                if self.workload.generator.id == 0:
-                    print(f"pass: {self.workload.pass_counter} finished at time: {self.workload.generator.get_tick()}")
+            NcclLog.writeLog(NcclLogLevel.INFO, f"层 {self.workload.index} 发起权重梯度通信")
+            self.workload.layers[self.workload.index].issue_weight_grad_comm(
+                SchedulingPolicy.None_, CollectiveBarrier.Non_Blocking)
+            
+            if self.workload.index == 0:
+                NcclLog.writeLog(NcclLogLevel.INFO, f"🏁 权重梯度阶段完成！第 {self.workload.pass_counter} 轮完成于时间: {self.workload.generator.boostedTick()}")
                 self.workload.pass_counter += 1
                 self.workload.current_state = LoopState.Forward_Pass
-                NcclLog.writeLog(NcclLogLevel.INFO, f"完成第 {self.workload.pass_counter-1} 轮训练，重置为前向传播阶段")
+                NcclLog.writeLog(NcclLogLevel.INFO, f"开始第 {self.workload.pass_counter} 轮，返回前向传播阶段")
             else:
+                NcclLog.writeLog(NcclLogLevel.INFO, f"权重梯度继续，切换到输入梯度阶段")
                 self.workload.current_state = LoopState.Input_Gradient
-                NcclLog.writeLog(NcclLogLevel.INFO, f"权重梯度完成，切换到输入梯度阶段，层: {self.workload.index}")
             
             self.workload.generator.register_event(self.workload, EventType.General, None, 1)
             return
             
         elif self.workload.current_state == LoopState.Input_Gradient:
-            NcclLog.writeLog(NcclLogLevel.INFO, f"处理输入梯度阶段 - 层 {self.workload.index}")
-            
-            # 检查是否需要前向反向初始化
-            if (self.workload.layers[self.workload.index].needs_fwd_in_bckwd_initiation and 
-                not self.workload.checkpoint_initiated):
-                tmp = self.workload.index
-                while not self.workload.layers[self.workload.index].is_checkpoint:
-                    self.workload.index -= 1
-                self.workload.index += 1
-                self.workload.current_state = LoopState.Forward_In_BackPass
-                self.workload.checkpoint_initiated = True
-                NcclLog.writeLog(NcclLogLevel.INFO, f"启动前向反向检查点机制，从层 {self.workload.index} 到层 {tmp}")
-                self.workload.generator.register_event(self.workload, EventType.General, None, 1)
-                if self.workload.generator.id == 0:
-                    print(f"***** info, initiating fwd_in_bkwd starting from layer: "
-                        f"{self.workload.index} to layer: {tmp}, at time: {self.workload.generator.get_tick()}")
-                return
+            NcclLog.writeLog(NcclLogLevel.INFO, f"=== 处理输入梯度阶段 - 层 {self.workload.index}/{self.workload.size-1} ===")
             
             if not self.workload.delay_loaded:
                 self.workload.counter = self.workload.layers[self.workload.index].get_input_grad_compute()
                 self.workload.delay_loaded = True
-                NcclLog.writeLog(NcclLogLevel.INFO, f"设置层 {self.workload.index} 输入梯度计算时间: {self.workload.counter}")
+                NcclLog.writeLog(NcclLogLevel.INFO, f"层 {self.workload.index} 设置输入梯度计算时间: {self.workload.counter}")
             
             if self.workload.counter > 0:
-                NcclLog.writeLog(NcclLogLevel.INFO, f"注册层 {self.workload.index} 输入梯度计算等待事件，等待时间: {self.workload.counter}")
+                NcclLog.writeLog(NcclLogLevel.INFO, f"层 {self.workload.index} 注册输入梯度计算等待事件，等待时间: {self.workload.counter}")
                 self.workload.generator.try_register_event(
                     self.workload, EventType.Workload_Wait, None, self.workload.counter)
                 return
             
-            if not self.workload.collective_issued:
-                self.workload.collective_issued = True
-                NcclLog.writeLog(NcclLogLevel.INFO, f"发起层 {self.workload.index} 输入梯度通信")
-                self.workload.layers[self.workload.index].issue_input_grad_comm(
-                    SchedulingPolicy.LIFO, CollectiveBarrier.Blocking)
+            if not self.workload.layers[self.workload.index].is_fwd_pass_comm_finished_blocking():
+                NcclLog.writeLog(NcclLogLevel.INFO, f"层 {self.workload.index} 前向通信未完成，等待中...")
                 return
             
-            self.workload.checkpoint_initiated = False
-            self.workload.collective_issued = False
             self.workload.delay_loaded = False
-            self.workload.current_state = LoopState.Weight_Gradient
-            NcclLog.writeLog(NcclLogLevel.INFO, f"输入梯度完成，切换到权重梯度阶段，层: {self.workload.index}")
+            NcclLog.writeLog(NcclLogLevel.INFO, f"层 {self.workload.index} 发起输入梯度通信")
+            self.workload.layers[self.workload.index].issue_input_grad_comm(
+                SchedulingPolicy.None_, CollectiveBarrier.Non_Blocking)
+            
+            if self.workload.index >= 0:
+                self.workload.index -= 1
+            
+            if self.workload.index == -1:
+                NcclLog.writeLog(NcclLogLevel.INFO, f"📉 输入梯度阶段完成！切换到权重梯度阶段")
+                self.workload.index = self.workload.size - 1
+                self.workload.current_state = LoopState.Weight_Gradient
+            else:
+                NcclLog.writeLog(NcclLogLevel.INFO, f"⬅️ 输入梯度继续，移动到第 {self.workload.index} 层")
+            
             self.workload.generator.register_event(self.workload, EventType.General, None, 1)
             return
             

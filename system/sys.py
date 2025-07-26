@@ -1096,7 +1096,7 @@ class Sys(Callable):
 
     def get_priority(self, pref_scheduling: SchedulingPolicy) -> int:
         """Get priority - corresponds to Sys::get_priority"""
-        if pref_scheduling == SchedulingPolicy.NONE:
+        if pref_scheduling == SchedulingPolicy.None_:
             if self.scheduling_policy == SchedulingPolicy.LIFO:
                 self.priority_counter += 1
                 return self.priority_counter
