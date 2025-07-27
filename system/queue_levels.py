@@ -17,6 +17,7 @@ class BackendType(Enum):
     Garnet = "Garnet"
     NS3 = "NS3"
     Analytical = "Analytical"
+    HTSimPy = "HTSimPy"
 
 
 class QueueLevelHandler:

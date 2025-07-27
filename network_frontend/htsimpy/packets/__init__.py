@@ -1,0 +1,32 @@
+"""
+Packets - Data Packet Types
+
+This module contains various packet type implementations that correspond to 
+the different packet header files in htsim:
+
+- base_packet.py: 基础数据包类 (对应各种packet.h的基类)
+- tcp_packet.py: 对应 tcppacket.h/cpp
+- ndp_packet.py: 对应 ndppacket.h/cpp  
+- swift_packet.py: 对应 swiftpacket.h/cpp
+- roce_packet.py: 对应 rocepacket.h/cpp
+- hpcc_packet.py: 对应 hpccpacket.h/cpp
+- strack_packet.py: 对应 strackpacket.h/cpp
+"""
+
+from .base_packet import BasePacket
+from .tcp_packet import TCPPacket
+from .ndp_packet import NDPPacket
+from .swift_packet import SwiftPacket
+from .roce_packet import RoCEPacket
+from .hpcc_packet import HPCCPacket
+from .strack_packet import STrackPacket
+
+__all__ = [
+    'BasePacket',
+    'TCPPacket', 
+    'NDPPacket',
+    'SwiftPacket',
+    'RoCEPacket',
+    'HPCCPacket',
+    'STrackPacket',
+]

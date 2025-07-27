@@ -88,6 +88,7 @@ class BackendType(Enum):
     Garnet = 1
     NS3 = 2
     Analytical = 3
+    HTSimPy = 4
 
 
 class AstraNetworkAPI(ABC):
