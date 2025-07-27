@@ -1,0 +1,2 @@
+[console_scripts]
+simpy-ns3 = network_frontend.ns3.AstraSimNetwork:main

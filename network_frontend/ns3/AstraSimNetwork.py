@@ -8,16 +8,19 @@ Main network API implementation class for NS3 backend
 from __future__ import annotations
 import sys
 import threading
+import os
 from typing import Optional, Callable, Any, List
 from dataclasses import dataclass
 from queue import Queue
 
 from system.AstraNetworkAPI import AstraNetworkAPI, TimeSpec, SimComm, SimRequest, BackendType
-from .common import ns, NS3_AVAILABLE, RESULT_PATH
+from .common import ns, NS3_AVAILABLE, RESULT_PATH, get_ns3_time, schedule_ns3_event
 from .entry import (
-    task1, SendFlow, RecvFlow, receiver_pending_queue, sender_src_port_map,
+    task1, SendFlow, receiver_pending_queue, sender_src_port_map,
     expeRecvHash, recvHash, sentHash, nodeHash, safe_hash_get, safe_hash_set, safe_hash_del
 )
+
+# Use the existing MockNcclLog from system module
 
 # sim_event structure (same as C++ struct sim_event)
 @dataclass
@@ -78,7 +81,6 @@ class ASTRASimNetwork(AstraNetworkAPI):
         Returns:
             0 for success
         """
-        import os
         import threading
         
         # Print statistics like C++ version
@@ -125,14 +127,7 @@ class ASTRASimNetwork(AstraNetworkAPI):
             Current simulation time
         """
         timeSpec = TimeSpec()
-        
-        if NS3_AVAILABLE:
-            # Use NS3 Simulator time like C++ version
-            timeSpec.time_val = float(ns.Simulator.Now().GetNanoSeconds())
-        else:
-            # Mock implementation
-            timeSpec.time_val = 0.0
-            
+        timeSpec.time_val = get_ns3_time()
         return timeSpec
     
     def sim_schedule(self, delta: TimeSpec, 
@@ -152,13 +147,7 @@ class ASTRASimNetwork(AstraNetworkAPI):
         t.msg_handler = fun_ptr
         t.schTime = delta.time_val
         
-        if NS3_AVAILABLE:
-            # Use NS3 Simulator.Schedule like C++ version
-            ns.Simulator.Schedule(ns.NanoSeconds(t.schTime), t.msg_handler, t.fun_arg)
-        else:
-            # Mock implementation - execute immediately for testing
-            if t.msg_handler:
-                t.msg_handler(t.fun_arg)
+        schedule_ns3_event(t.schTime, t.msg_handler, t.fun_arg)
     
     def sim_send(self, buffer: Any, count: int, type_: int, 
                 dst: int, tag: int, request: SimRequest,
@@ -190,7 +179,7 @@ class ASTRASimNetwork(AstraNetworkAPI):
         t.fun_arg = fun_arg
         t.msg_handler = msg_handler
         
-        # Store in sentHash like C++ version
+        # Store in sentHash like C++ version with thread safety
         key = (tag, (t.src, t.dest))
         safe_hash_set(sentHash, key, t)
         
@@ -204,7 +193,7 @@ class ASTRASimNetwork(AstraNetworkAPI):
                 msg_handler: Callable[[Any], None],
                 fun_arg: Any) -> int:
         """
-        Receive data (corresponds to C++ sim_recv)
+        Receive data (corresponds to C++ sim_recv) - EXACT replica of C++ logic
         
         Args:
             buffer: Receive buffer
@@ -219,7 +208,8 @@ class ASTRASimNetwork(AstraNetworkAPI):
         Returns:
             0 for success
         """
-        # TODO: Add MockNcclLog integration like C++ version
+        # Initialize MockNcclLog like C++ version
+        NcclLog = MockNcclLog.getInstance()
         flowTag = request.flowTag
         src += self.npu_offset
         
@@ -231,39 +221,87 @@ class ASTRASimNetwork(AstraNetworkAPI):
         t.fun_arg = fun_arg
         t.msg_handler = msg_handler
         
-        # Handle receive logic like C++ version
-        # This includes complex hash map operations that match C++ logic
+        # Get event from fun_arg like C++ (assuming it's RecvPacketEventHandlerData)
+        # In Python, we'll check if fun_arg has the expected attributes
+        if hasattr(fun_arg, 'event') and hasattr(fun_arg, 'flowTag'):
+            ehd = fun_arg
+            event = ehd.event
+            tag = ehd.flowTag.tag_id
+            NcclLog.writeLog(MockNcclLogLevel.DEBUG,
+                "[Receive event registration] src %d sim_recv on rank %d tag_id %d channel_id %d",
+                src, self.rank, tag, ehd.flowTag.channel_id)
+        
+        # Thread-safe access to hash maps - EXACT C++ logic replication
         key = (tag, (t.src, t.dest))
         
-        existing_count = safe_hash_get(recvHash, key, 0)
-        if existing_count > 0:
+        # Main logic block - exactly matches C++ if-else structure
+        existing_count = safe_hash_get(recvHash, key)
+        if existing_count is not None:
             if existing_count == t.count:
-                # Complete match - remove and execute
+                # Complete match case
                 safe_hash_del(recvHash, key)
-                # TODO: Handle flowTag logic like C++
+                
+                if hasattr(fun_arg, 'flowTag'):
+                    ehd = fun_arg
+                    assert ehd.flowTag.child_flow_id == -1 and ehd.flowTag.current_flow_id == -1
+                    
+                    # Check receiver_pending_queue like C++
+                    pending_key = ((self.rank, src), tag)
+                    if pending_key in receiver_pending_queue:
+                        pending_tag = receiver_pending_queue[pending_key]
+                        del receiver_pending_queue[pending_key]
+                        ehd.flowTag = pending_tag
+                
+                # Execute callback
                 if t.msg_handler:
                     t.msg_handler(t.fun_arg)
+                goto_sim_recv_end_section = True
+                
             elif existing_count > t.count:
-                # Partial match - update and execute
+                # Partial match case - more data available than requested
                 safe_hash_set(recvHash, key, existing_count - t.count)
-                # TODO: Handle flowTag logic like C++
+                
+                if hasattr(fun_arg, 'flowTag'):
+                    ehd = fun_arg
+                    assert ehd.flowTag.child_flow_id == -1 and ehd.flowTag.current_flow_id == -1
+                    
+                    # Check receiver_pending_queue like C++
+                    pending_key = ((self.rank, src), tag)
+                    if pending_key in receiver_pending_queue:
+                        pending_tag = receiver_pending_queue[pending_key]
+                        del receiver_pending_queue[pending_key]
+                        ehd.flowTag = pending_tag
+                
+                # Execute callback
                 if t.msg_handler:
                     t.msg_handler(t.fun_arg)
+                goto_sim_recv_end_section = True
+                
             else:
-                # Need more data - store expectation
+                # Need more data - existing_count < t.count
                 safe_hash_del(recvHash, key)
                 t.count -= existing_count
                 safe_hash_set(expeRecvHash, key, t)
+                goto_sim_recv_end_section = False
         else:
-            # No existing data - store expectation
+            # No existing data in recvHash
             existing_task = safe_hash_get(expeRecvHash, key)
             if existing_task is None:
+                # First time registration
                 safe_hash_set(expeRecvHash, key, t)
+                NcclLog.writeLog(MockNcclLogLevel.DEBUG,
+                    " [Packet arrived late, registering first] recvHash do not find expeRecvHash.new make src %d dest %d t.count: %d channel_id %d current_flow_id %d",
+                    t.src, t.dest, t.count, tag, flowTag.current_flow_id)
             else:
-                # Update existing expectation
-                existing_task.count += t.count
-                safe_hash_set(expeRecvHash, key, existing_task)
+                # Update existing expectation - C++ doesn't actually update, but logs
+                expe_count = existing_task.count
+                NcclLog.writeLog(MockNcclLogLevel.DEBUG,
+                    " [Packet arrived late, re-registering] recvHash do not find expeRecvHash.add make src %d dest %d expecount: %d t.count: %d tag_id %d current_flow_id %d",
+                    t.src, t.dest, expe_count, t.count, tag, flowTag.current_flow_id)
+            
+            goto_sim_recv_end_section = False
         
+        # sim_recv_end_section: (C++ label equivalent)
         return 0
     
     def handleEvent(self, dst: int, cnt: int) -> None:
@@ -279,7 +317,7 @@ class ASTRASimNetwork(AstraNetworkAPI):
 
 
 # ============================================================================
-# Main function and user_param (same as C++ main() in AstraSimNetwork.cc)
+# Main function and user_param (same as C++ main() in AstraSimNetwork.cc)  
 # ============================================================================
 
 import argparse
@@ -351,15 +389,15 @@ def main(argv=None):
     if exit_code != 0:
         return exit_code
     
-    # TODO: Add MockNcclLog initialization like C++ version
-    # MockNcclLog::set_log_name("SimAI.log");
-    # MockNcclLog* NcclLog = MockNcclLog::getInstance();
+    # Initialize MockNcclLog like C++ version
+    MockNcclLog.set_log_name("SimAI.log")
+    NcclLog = MockNcclLog.getInstance()
+    NcclLog.writeLog(MockNcclLogLevel.INFO, " init SimAI.log ")
+    
     print("Initializing SimAI NS3 backend...")
     
     # TODO: Add multi-threading support like C++ version
-    # #ifdef NS3_MTP
-    # MtpInterface::Enable(user_params.thread);
-    # #endif
+    # In C++: MtpInterface::Enable(user_params.thread);
     
     # Initialize NS3 topology and configuration
     from .entry import main1, cleanup_hash_maps
@@ -380,12 +418,8 @@ def main(argv=None):
         node2nvswitch[i] = i
         common.NVswitchs.append(i)
     
-    # TODO: Enable NS3 logging like C++ version
-    if common.NS3_AVAILABLE:
-        # LogComponentEnable("OnOffApplication", LOG_LEVEL_INFO);
-        # LogComponentEnable("PacketSink", LOG_LEVEL_INFO);
-        # LogComponentEnable("GENERIC_SIMULATION", LOG_LEVEL_INFO);
-        pass
+    # Enable NS3 logging like C++ version
+    common.configure_ns3_logging()
     
     # Create networks and systems (same structure as C++)
     networks: List[ASTRASimNetwork] = []
@@ -396,11 +430,10 @@ def main(argv=None):
         network = ASTRASimNetwork(j, 0)
         networks.append(network)
         
-        # Create system like C++ version
-        # TODO: Match exact C++ Sys constructor parameters
+        # Create system like C++ version - match exact C++ Sys constructor parameters
         system = Sys(
-            network=network,
-            memory=None,  # nullptr in C++
+            NI=network,
+            MEM=None,  # nullptr in C++
             id=j,
             num_passes=0,
             comm_group_size=1,
@@ -435,11 +468,11 @@ def main(argv=None):
     
     print("Starting NS3 simulator...")
     
-    if common.NS3_AVAILABLE:
+    if NS3_AVAILABLE:
         # Run NS3 simulator like C++ version
-        common.ns.Simulator.Run()
-        common.ns.Simulator.Stop(common.ns.Seconds(2000000000))
-        common.ns.Simulator.Destroy()
+        ns.Simulator.Run()
+        ns.Simulator.Stop(ns.Seconds(20000000000))
+        ns.Simulator.Destroy()
     else:
         print("NS3 not available - running mock simulation")
         # Mock simulation for development
@@ -448,9 +481,7 @@ def main(argv=None):
         print("Mock simulation completed")
     
     # TODO: Cleanup like C++ version
-    # #ifdef NS3_MPI
-    # MpiInterface::Disable();
-    # #endif
+    # In C++: MpiInterface::Disable();
     
     cleanup_hash_maps()
     return 0

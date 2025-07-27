@@ -1,0 +1,192 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "simpy-ns3"
+version = "0.1.0"
+description = "SimAI NS3 Network Backend - Python implementation with NS3 support"
+authors = [
+    {name = "SimAI Team", email = "team@simai.dev"}
+]
+readme = "README.md"
+license = {text = "Apache-2.0"}
+requires-python = ">=3.8"
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering",
+    "Topic :: System :: Networking",
+]
+keywords = ["network-simulation", "ns3", "hpc", "distributed-systems"]
+
+dependencies = [
+    # Core dependencies
+    "numpy>=1.20.0",
+    "dataclasses-json>=0.5.7",
+    
+    # Optional NS3 support (can be installed separately)
+    # "ns3>=3.37",  # Uncomment if using pip wheel
+    
+    # Development and testing
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "black>=22.0.0",
+    "isort>=5.10.0",
+    "mypy>=1.0.0",
+]
+
+[project.optional-dependencies]
+# NS3 support - can install with: uv pip install -e ".[ns3]"
+ns3 = [
+    "ns3>=3.37",
+    "cppyy>=3.1.2",
+]
+
+# Full development environment
+dev = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "pytest-xdist>=3.0.0",
+    "black>=22.0.0", 
+    "isort>=5.10.0",
+    "mypy>=1.0.0",
+    "pre-commit>=3.0.0",
+    "sphinx>=5.0.0",
+    "sphinx-rtd-theme>=1.0.0",
+]
+
+# Documentation
+docs = [
+    "sphinx>=5.0.0",
+    "sphinx-rtd-theme>=1.0.0",
+    "myst-parser>=0.18.0",
+]
+
+# Performance monitoring
+perf = [
+    "psutil>=5.8.0",
+    "memory-profiler>=0.60.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/your-org/simpy-ns3"
+Documentation = "https://simpy-ns3.readthedocs.io"
+Repository = "https://github.com/your-org/simpy-ns3.git"
+"Bug Tracker" = "https://github.com/your-org/simpy-ns3/issues"
+
+[project.scripts]
+simpy-ns3 = "network_frontend.ns3.AstraSimNetwork:main"
+
+[tool.setuptools.packages.find]
+include = ["simpy*", "system*", "workload*", "network_frontend*"]
+exclude = ["tests*", "docs*", "examples*"]
+
+[tool.setuptools.package-data]
+"*" = ["*.yaml", "*.txt", "*.conf", "*.json"]
+
+# Black code formatting
+[tool.black]
+line-length = 100
+target-version = ['py38', 'py39', 'py310', 'py311', 'py312']
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+  # directories
+  \.eggs
+  | \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | build
+  | dist
+  | SimAI
+)/
+'''
+
+# isort import sorting
+[tool.isort]
+profile = "black"
+multi_line_output = 3
+line_length = 100
+known_first_party = ["simpy", "system", "workload", "network_frontend"]
+known_third_party = ["numpy", "pytest", "ns"]
+
+# MyPy type checking
+[tool.mypy]
+python_version = "3.8"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_untyped_decorators = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+warn_unreachable = true
+strict_equality = true
+
+[[tool.mypy.overrides]]
+module = [
+    "ns.*",
+    "cppyy.*", 
+]
+ignore_missing_imports = true
+
+# Pytest configuration
+[tool.pytest.ini_options]
+minversion = "7.0"
+addopts = [
+    "--strict-markers",
+    "--strict-config",
+    "--cov=simpy",
+    "--cov=system", 
+    "--cov=workload",
+    "--cov=network_frontend",
+    "--cov-report=term-missing",
+    "--cov-report=html",
+    "--cov-report=xml",
+]
+testpaths = ["tests"]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "ns3: marks tests that require NS3 installation",
+    "integration: marks tests as integration tests", 
+    "unit: marks tests as unit tests",
+]
+
+# Coverage configuration
+[tool.coverage.run]
+source = ["simpy", "system", "workload", "network_frontend"]
+omit = [
+    "*/tests/*",
+    "*/test_*",
+    "*/__pycache__/*",
+    "*/SimAI/*",  # Exclude C++ reference implementation
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if self.debug:",
+    "if settings.DEBUG",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if 0:",
+    "if __name__ == .__main__.:",
+    "class .*\\bProtocol\\):",
+    "@(abc\\.)?abstractmethod",
+] 

@@ -17,7 +17,10 @@ class CSVWriter:
         self._closed = False
 
     def __del__(self):
-        self._save_and_close()
+        try:
+            self._save_and_close()
+        except Exception as e:
+            print(f"Error in CSVWriter.__del__: {e}")
 
     def close(self):
         """显式关闭并保存文件"""

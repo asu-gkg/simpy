@@ -58,6 +58,7 @@ python3 ./SimAI/astra-sim-alibabacloud/inputs/topo/gen_Topo_Template.py -topo Sp
 # Run Python version with analytical backend
 uv run main.py --backend analytical -w examples/workload_analytical.txt -g 8
 uv run main.py --backend analytical -w examples/microAllReduce.txt -g 8
+
 # Run Python version with ns3 backend
 uv run main.py --backend ns3 -w examples/microAllReduce.txt -n topo_file.txt
 
