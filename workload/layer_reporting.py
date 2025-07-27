@@ -84,8 +84,9 @@ class LayerReporting:
         layer_ig_time = self.total_input_grad_compute / FREQ
         
         # 注意：total_compute现在在workload_reporting中累加，避免Python按值传递问题
-        total_exposed += (self.total_fwd_comm + self.total_weight_grad_comm + 
-                         self.total_input_grad_comm) / FREQ
+        # total_exposed应该累加等待时间，而不是实际通信时间（与C++版本保持一致）
+        total_exposed += (self.total_waiting_for_fwd_comm + self.total_waiting_for_wg_comm + 
+                        self.total_waiting_for_ig_comm) / FREQ
         
         # 更新传入的列表（对应C++版本的数组更新）
         total_fwd_time[0] += layer_fwd_time
@@ -181,7 +182,9 @@ class LayerReporting:
             
             # 最后一层的总结
             if layer_num == self.workload.size - 1:
-                total_exposed = (self.generator.get_tick() / FREQ) - total_compute
+                # 使用正确的total_exposed计算方法：累加等待时间，而不是用总时间减法
+                # total_exposed应该等于所有层的等待通信时间总和
+                actual_total_exposed = total_fwd_time[1] + total_wg_time[1] + total_ig_time[1]
                 
                 # 写入SUM行
                 sum_data = f"SUM,{run_name},{total_fwd_time[0]:.6f},{total_wg_time[0]:.6f},{total_ig_time[0]:.6f},{total_fwd_time[1]:.6f},{total_wg_time[1]:.6f},{total_ig_time[1]:.6f},{total_fwd_time[2]:.6f},NONE,NONE,{total_wg_time[2]:.6f},NONE,NONE,{total_ig_time[2]:.6f},NONE,NONE"
@@ -189,8 +192,8 @@ class LayerReporting:
                 
                 # 计算正确的总计算时间（使用累加的数组值）
                 actual_total_compute = total_fwd_time[0] + total_wg_time[0] + total_ig_time[0]
-                total_time = actual_total_compute + total_exposed
-                summary_data = f"total exposed comm,{total_exposed:.6f},total comp,{actual_total_compute:.6f},total time,{total_time:.6f}"
+                total_time = actual_total_compute + actual_total_exposed
+                summary_data = f"total exposed comm,{actual_total_exposed:.6f},total comp,{actual_total_compute:.6f},total time,{total_time:.6f}"
                 end_to_end.write_line(summary_data)
         
         return layer_data

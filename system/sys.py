@@ -421,14 +421,14 @@ class Sys(Callable):
         self.pending_events += 1
 
     def register_event(self, callable_obj: Callable, event: EventType,
-                       callData: CallData, cycles: int) -> None:
+                    callData: CallData, cycles: int) -> None:
         """Register event - corresponds to Sys::register_event"""
         mycycles = Tick(cycles)
         # 忽略返回值，因为register_event不需要清零counter
         self.try_register_event(callable_obj, event, callData, mycycles)
 
     def try_register_event(self, callable_obj: Callable, event: EventType,
-                           callData: CallData, cycles: Tick) -> bool:
+                        callData: CallData, cycles: Tick) -> bool:
         """Try to register event - corresponds to Sys::try_register_event
         
         Returns:
@@ -970,8 +970,8 @@ class Sys(Callable):
             return self.sim_send(delay, buffer, count, msg_type, dst, tag, request, msg_handler, fun_arg)
 
     def front_end_sim_recv(self, delay: Tick, buffer: Any, count: int, msg_type: int,
-                           src: int, tag: int, request: sim_request,
-                           msg_handler: CallableType, fun_arg: Any) -> int:
+                        src: int, tag: int, request: sim_request,
+                        msg_handler: CallableType, fun_arg: Any) -> int:
         """Frontend simulation receive - corresponds to Sys::front_end_sim_recv"""
         if self.rendezvous_enabled:
             return self.rendezvous_sim_recv(delay, buffer, count, msg_type, src, tag, request, msg_handler, fun_arg)
@@ -979,8 +979,8 @@ class Sys(Callable):
             return self.sim_recv(delay, buffer, count, msg_type, src, tag, request, msg_handler, fun_arg)
 
     def sim_send(self, delay: Tick, buffer: Any, count: int, msg_type: int,
-                 dst: int, tag: int, request: sim_request,
-                 msg_handler: CallableType, fun_arg: Any) -> int:
+                dst: int, tag: int, request: sim_request,
+                msg_handler: CallableType, fun_arg: Any) -> int:
         """Simulation send - corresponds to Sys::sim_send"""
         if delay == 0 and fun_arg is None:
             # Handle immediate send
@@ -1012,8 +1012,8 @@ class Sys(Callable):
         return 1
 
     def sim_recv(self, delay: Tick, buffer: Any, count: int, msg_type: int,
-                 src: int, tag: int, request: sim_request,
-                 msg_handler: CallableType, fun_arg: Any) -> int:
+                    src: int, tag: int, request: sim_request,
+                    msg_handler: CallableType, fun_arg: Any) -> int:
         """Simulation receive - corresponds to Sys::sim_recv"""
         if delay == 0:
             # Immediate receive
