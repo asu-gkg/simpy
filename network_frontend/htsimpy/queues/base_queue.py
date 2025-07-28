@@ -20,7 +20,7 @@ from ..core.eventlist import EventSource
 from ..core.logger import Logged
 
 
-class BaseQueue(PacketSink, EventSource):
+class BaseQueue(PacketSink, EventSource, Logged):
     """
     队列基类 - 对应 queue.h/cpp 中的 Queue 类
     

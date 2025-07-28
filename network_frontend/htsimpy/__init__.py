@@ -18,12 +18,15 @@ __author__ = "HTSimPy Team"
 
 # Core components
 from .core.eventlist import EventList, EventSource
-from .core.network import Network, Packet, PacketSink, PacketFlow
+from .core.network import Packet, PacketSink, PacketFlow
 from .core.packet import PacketType, PacketDirection, PacketPriority
 from .core.route import Route
 from .core.routetable import RouteTable
-from .core.config import Config
+from .core.config import SimulationConfig
 from .core.logger import Logger
+
+# Queue components
+from .queues.fifo_queue import FIFOQueue
 
 # API interface
 from .api.htsimpy_network import HTSimPyNetwork
@@ -32,9 +35,12 @@ from .api.config_parser import HTSimPyConfig
 __all__ = [
     # Core components
     'EventList', 'EventSource',
-    'Network', 'Packet', 'PacketSink', 'PacketFlow',
+    'Packet', 'PacketSink', 'PacketFlow',
     'PacketType', 'PacketDirection', 'PacketPriority',
-    'Route', 'RouteTable', 'Config', 'Logger',
+    'Route', 'RouteTable', 'SimulationConfig', 'Logger',
+    
+    # Queue components
+    'FIFOQueue',
     
     # API interface
     'HTSimPyNetwork', 'HTSimPyConfig',

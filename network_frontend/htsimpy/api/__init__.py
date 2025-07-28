@@ -10,10 +10,8 @@ This module contains the API interfaces for integrating HTSimPy with SimAI:
 
 from .htsimpy_network import HTSimPyNetwork
 from .config_parser import HTSimPyConfig
-from .flow_generator import FlowGenerator
 
 __all__ = [
     'HTSimPyNetwork',
-    'HTSimPyConfig', 
-    'FlowGenerator',
+    'HTSimPyConfig',
 ]

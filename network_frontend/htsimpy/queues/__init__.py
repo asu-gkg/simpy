@@ -15,18 +15,8 @@ the different queue files in htsim:
 
 from .base_queue import BaseQueue
 from .fifo_queue import FIFOQueue
-from .priority_queue import PriorityQueue
-from .random_queue import RandomQueue
-from .lossless_queue import LosslessQueue
-from .fair_queue import FairQueue
-from .composite_queue import CompositeQueue
 
 __all__ = [
     'BaseQueue',
     'FIFOQueue',
-    'PriorityQueue', 
-    'RandomQueue',
-    'LosslessQueue',
-    'FairQueue',
-    'CompositeQueue',
 ]

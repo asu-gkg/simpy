@@ -16,7 +16,6 @@ HTSimPyNetwork - Main Network API Implementation
 
 from typing import Optional, Any, Callable
 from ..core.eventlist import EventList
-from ..core.network import Network
 from ..core.config import SimulationConfig
 from ..core.logger import Logger
 
@@ -37,7 +36,7 @@ class HTSimPyNetwork:
         """
         self._config = config or SimulationConfig()
         self._eventlist = EventList.get_instance()
-        self._network = None
+        self._network = None  # Network class not implemented yet
         self._logger = Logger()
         self._initialized = False
     
@@ -62,7 +61,8 @@ class HTSimPyNetwork:
         
         try:
             # TODO: 实现网络初始化逻辑
-            self._network = Network()
+            # self._network = Network()  # TODO: Implement Network class
+            pass
             self._initialized = True
             return True
         except Exception as e:
@@ -263,7 +263,7 @@ class HTSimPyNetwork:
         return self._eventlist
     
     @property
-    def network(self) -> Optional[Network]:
+    def network(self) -> Optional[Any]:
         """获取网络实例"""
         return self._network
     

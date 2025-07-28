@@ -16,17 +16,9 @@ the different packet header files in htsim:
 from .base_packet import BasePacket
 from .tcp_packet import TCPPacket
 from .ndp_packet import NDPPacket
-from .swift_packet import SwiftPacket
-from .roce_packet import RoCEPacket
-from .hpcc_packet import HPCCPacket
-from .strack_packet import STrackPacket
 
 __all__ = [
     'BasePacket',
     'TCPPacket', 
     'NDPPacket',
-    'SwiftPacket',
-    'RoCEPacket',
-    'HPCCPacket',
-    'STrackPacket',
 ]

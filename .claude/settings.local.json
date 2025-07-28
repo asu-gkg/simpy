@@ -3,7 +3,9 @@
     "allow": [
       "Bash(ls:*)",
       "Bash(find:*)",
-      "Bash(mkdir:*)"
+      "Bash(mkdir:*)",
+      "Bash(uv run:*)",
+      "Bash(uv pip install:*)"
     ],
     "deny": []
   }

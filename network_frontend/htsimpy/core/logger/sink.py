@@ -44,7 +44,6 @@ class SinkLoggerSampling(Logger):
         # 多重继承初始化 - 先初始化EventSource（因为它也调用了Logged.__init__）
         EventSource.__init__(self, eventlist, "SinkLoggerSampling")
         Logger.__init__(self)  # Logger的__init__比较简单
-        
         self._period = period
         self._sink_type = sink_type
         self._event_type = event_type
