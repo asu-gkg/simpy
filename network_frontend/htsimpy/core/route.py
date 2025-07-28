@@ -48,22 +48,25 @@ class Route:
         self._no_of_paths: int = 0
         
         if orig_route is not None and dst is not None:
-            # 拷贝构造函数实现
+            # 对应 C++: Route(const Route& orig, PacketSink& dst) : _sinklist(orig.size()+1)
+            # 预分配空间并逐个赋值，精确对应C++实现
             self._path_id = orig_route.path_id()
             self._reverse = orig_route._reverse
-            self._hop_count = orig_route.hop_count()
+            self._hop_count = orig_route.hop_count()  # 先设置为原始值
             self._no_of_paths = orig_route.no_of_paths()
             
-            # 复制原路由的所有节点
+            # C++中的实现方式：预分配空间后逐个赋值
+            self._sinklist = [None] * (orig_route.size() + 1)
             for i in range(orig_route.size()):
-                self._sinklist.append(orig_route.at(i))
-            
-            # 添加目标节点
-            self._sinklist.append(dst)
+                self._sinklist[i] = orig_route.at(i)
+            self._sinklist[orig_route.size()] = dst
+            # 对应 C++: _hop_count++; (直接增加，不调用update_hopcount)
             self._hop_count += 1
         elif size is not None:
-            # 预分配空间（Python 中通过预分配列表实现）
-            pass  # Python 列表会自动管理内存
+            # 对应 C++: Route(int size) : _hop_count(0), _reverse(NULL) { _sinklist.reserve(size); }
+            # Python中预分配空间的等价实现
+            self._sinklist = []  # Python列表会自动管理内存
+        # else: 默认构造函数，所有成员变量已在上面初始化
     
     def at(self, n: int) -> PacketSink:
         """
@@ -104,6 +107,10 @@ class Route:
         对应 C++ 中的 void add_endpoints(PacketSink *src, PacketSink* dst)
         添加端点
         """
+        # 对应 C++ 中被注释掉的代码: //_sinklist.push_back(dst);
+        # self._sinklist.append(dst)  # 这行在C++中被注释掉了
+        
+        # 对应 C++: if (_reverse) { _reverse->push_back(src); }
         if self._reverse:
             self._reverse.push_back(src)
     
@@ -119,12 +126,23 @@ class Route:
         对应 C++ 中的 Route* clone() const
         创建路由的深拷贝
         """
+        # 对应 C++: Route *copy = new Route(_hop_count);
+        # 注意：这里C++传的是_hop_count作为size参数，不是作为hop_count值
         copy = Route(self._hop_count)
         copy.set_path_id(self._path_id, self._no_of_paths)
-        copy._reverse = self._reverse  # 浅拷贝反向路由
         
-        # 复制所有节点
-        copy._sinklist = self._sinklist.copy()
+        # 对应 C++: copy->_reverse = _reverse; (浅拷贝反向路由)
+        # 注释说明不克隆反向路径: /* don't clone the reverse path */
+        copy._reverse = self._reverse
+        
+        # 对应 C++: copy->_sinklist.resize(_sinklist.size());
+        # 然后逐个赋值: copy->_sinklist[i] = _sinklist[i];
+        copy._sinklist = [None] * len(self._sinklist)
+        for i in range(len(self._sinklist)):
+            copy._sinklist[i] = self._sinklist[i]
+        
+        # C++中没有显式设置_hop_count，是通过直接赋值保持的
+        # 但在Python中我们需要显式设置
         copy._hop_count = self._hop_count
         
         return copy
@@ -245,7 +263,10 @@ class Route:
 
 
 # 类型别名 - 对应 C++ 中的 typedef
+# C++: typedef Route route_t;
 route_t = Route
+# C++: typedef vector<route_t*> routes_t; (Route对象指针的vector)
+# Python: List[route_t] (Route对象的List，Python中对象本身就是引用)
 routes_t = List[route_t]
 
 
@@ -254,16 +275,25 @@ def check_non_null(rt: Route) -> None:
     对应 C++ 中的 void check_non_null(Route* rt) 函数
     检查路由中是否有空节点
     """
-    fail = False
+    # 对应 C++: int fail = 0;
+    fail = 0
+    
+    # 对应 C++: for (size_t i=1;i<rt->size()-1;i++)
+    #           if (rt->at(i)==NULL){ fail = 1; break; }
     for i in range(1, rt.size() - 1):
         if rt.at(i) is None:
-            fail = True
+            fail = 1
             break
     
     if fail:
-        print("Null sink in route")
+        # 对应 C++被注释掉的: //cout <<"Null queue in route"<<endl;
+        # print("Null queue in route")
+        
+        # 对应 C++: for (size_t i=1;i<rt->size()-1;i++) printf("%p ",rt->at(i));
         for i in range(1, rt.size() - 1):
-            print(f"{rt.at(i)} ", end="")
+            print(f"{id(rt.at(i)):p} ", end="")  # 使用id()模拟指针地址
+        
+        # 对应 C++: cout<<endl; assert(0);
         print()
         assert False, "Route contains null sinks"
 

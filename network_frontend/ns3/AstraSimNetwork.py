@@ -14,13 +14,12 @@ from dataclasses import dataclass
 from queue import Queue
 
 from system.AstraNetworkAPI import AstraNetworkAPI, TimeSpec, SimComm, SimRequest, BackendType
-from .common import ns, NS3_AVAILABLE, RESULT_PATH, get_ns3_time, schedule_ns3_event
+from system.mock_nccl_log import MockNcclLog, NcclLogLevel as MockNcclLogLevel
+from .common import ns, NS3_AVAILABLE
 from .entry import (
     task1, SendFlow, receiver_pending_queue, sender_src_port_map,
     expeRecvHash, recvHash, sentHash, nodeHash, safe_hash_get, safe_hash_set, safe_hash_del
 )
-
-# Use the existing MockNcclLog from system module
 
 # sim_event structure (same as C++ struct sim_event)
 @dataclass
@@ -126,6 +125,7 @@ class ASTRASimNetwork(AstraNetworkAPI):
         Returns:
             Current simulation time
         """
+        from .common import get_ns3_time
         timeSpec = TimeSpec()
         timeSpec.time_val = get_ns3_time()
         return timeSpec
@@ -147,6 +147,7 @@ class ASTRASimNetwork(AstraNetworkAPI):
         t.msg_handler = fun_ptr
         t.schTime = delta.time_val
         
+        from .common import schedule_ns3_event
         schedule_ns3_event(t.schTime, t.msg_handler, t.fun_arg)
     
     def sim_send(self, buffer: Any, count: int, type_: int, 
@@ -209,7 +210,8 @@ class ASTRASimNetwork(AstraNetworkAPI):
             0 for success
         """
         # Initialize MockNcclLog like C++ version
-        NcclLog = MockNcclLog.getInstance()
+        from .entry import get_mock_nccl_log
+        NcclLog, MockNcclLogLevel = get_mock_nccl_log()
         flowTag = request.flowTag
         src += self.npu_offset
         
@@ -349,9 +351,7 @@ def user_param_parse(argv: List[str]) -> tuple[user_param, int]:
     """
     parser = argparse.ArgumentParser(description="SimAI NS3 Network Backend")
     
-    # Same parameters as C++ version
-    parser.add_argument("-h", "--help", action="help", 
-                       help="Show this help message")
+    # Same parameters as C++ version (不需要显式添加-h，argparse会自动添加)
     parser.add_argument("-t", "--thread", type=int, default=1,
                        help="Number of threads, default 1")
     parser.add_argument("-w", "--workload", type=str, required=True,
@@ -374,25 +374,38 @@ def user_param_parse(argv: List[str]) -> tuple[user_param, int]:
     except SystemExit as e:
         return user_param(), e.code if e.code else 0
 
-def main(argv=None):
+def main(args):
     """
     Main function for NS3 backend (corresponds to main() in AstraSimNetwork.cc)
     
     Args:
-        argv: Command line arguments (defaults to sys.argv)
+        args: Parsed arguments from argparse (Namespace object or argv list)
     """
-    if argv is None:
-        argv = sys.argv
-    
-    # Parse user parameters like C++ version
-    user_params, exit_code = user_param_parse(argv)
-    if exit_code != 0:
-        return exit_code
+    # Handle both Namespace object and argv list
+    if hasattr(args, 'workload'):
+        # It's a Namespace object from main.py
+        user_params = user_param()
+        user_params.thread = 1  # Default value, could be added to main.py args
+        user_params.workload = args.workload
+        user_params.network_topo = args.network_topo
+        user_params.network_conf = args.network_conf
+        exit_code = 0
+    else:
+        # It's an argv list
+        user_params, exit_code = user_param_parse(args if isinstance(args, list) else sys.argv)
+        if exit_code != 0:
+            return exit_code
     
     # Initialize MockNcclLog like C++ version
-    MockNcclLog.set_log_name("SimAI.log")
-    NcclLog = MockNcclLog.getInstance()
-    NcclLog.writeLog(MockNcclLogLevel.INFO, " init SimAI.log ")
+    from .entry import get_mock_nccl_log
+    MockNcclLog, MockNcclLogLevel = get_mock_nccl_log()
+    if hasattr(MockNcclLog, 'set_log_name'):
+        MockNcclLog.set_log_name("SimAI.log")
+    NcclLog = MockNcclLog if not hasattr(MockNcclLog, 'getInstance') else MockNcclLog.getInstance()
+    if MockNcclLogLevel:
+        NcclLog.writeLog(MockNcclLogLevel.INFO, " init SimAI.log ")
+    else:
+        NcclLog.writeLog("INFO", " init SimAI.log ")
     
     print("Initializing SimAI NS3 backend...")
     
@@ -418,8 +431,9 @@ def main(argv=None):
         node2nvswitch[i] = i
         common.NVswitchs.append(i)
     
-    # Enable NS3 logging like C++ version
-    common.configure_ns3_logging()
+    # Enable NS3 logging like C++ version  
+    from .common import configure_ns3_logging
+    configure_ns3_logging()
     
     # Create networks and systems (same structure as C++)
     networks: List[ASTRASimNetwork] = []
@@ -430,30 +444,30 @@ def main(argv=None):
         network = ASTRASimNetwork(j, 0)
         networks.append(network)
         
-        # Create system like C++ version - match exact C++ Sys constructor parameters
+        # Create system like C++ version - match Python Sys constructor parameters
         system = Sys(
             NI=network,
             MEM=None,  # nullptr in C++
             id=j,
+            npu_offset=0,
             num_passes=0,
-            comm_group_size=1,
-            num_queues_per_dim=[nodes_num],
-            num_dims=[1],
-            allocation_policy="",
-            workload_file=user_params.workload,
-            comm_scale=1,
-            compute_scale=1,
-            injection_scale=1,
+            physical_dims=[nodes_num],
+            queues_per_dim=[1],
+            my_sys="",  # allocation_policy in C++
+            my_workload=user_params.workload,
+            comm_scale=1.0,
+            compute_scale=1.0,
+            injection_scale=1.0,
             total_stat_rows=1,
             stat_row=0,
             path=common.RESULT_PATH,
             run_name="test1",
-            true_protocolon=True,
             seprate_log=False,
-            _gpu_type=common.gpu_type,
-            num_gpus=[gpu_num],
-            NVswitchs=common.NVswitchs,
-            gpus_per_server=common.gpus_per_server
+            rendezvous_enabled=True,  # true_protocolon in C++
+            gpu_type=common.gpu_type,
+            all_gpus=[gpu_num],
+            NVSwitchs=common.NVswitchs,
+            ngpus_per_node=common.gpus_per_server
         )
         
         # Set nvswitch_id like C++ version

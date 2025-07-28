@@ -11,9 +11,11 @@ network_frontend/htsimpy/api/config_parser.py
 network_frontend/htsimpy/api/htsimpy_network.py
 network_frontend/htsimpy/core/__init__.py
 network_frontend/htsimpy/core/config.py
+network_frontend/htsimpy/core/drawable.py
 network_frontend/htsimpy/core/eventlist.py
 network_frontend/htsimpy/core/network.py
 network_frontend/htsimpy/core/packet.py
+network_frontend/htsimpy/core/pipe.py
 network_frontend/htsimpy/core/route.py
 network_frontend/htsimpy/core/routetable.py
 network_frontend/htsimpy/core/logger/__init__.py
@@ -29,6 +31,8 @@ network_frontend/htsimpy/core/logger/reorder.py
 network_frontend/htsimpy/core/logger/sink.py
 network_frontend/htsimpy/core/logger/tcp.py
 network_frontend/htsimpy/core/logger/traffic.py
+network_frontend/htsimpy/examples/01_simple_p2p/main.py
+network_frontend/htsimpy/examples/04_tcp_example/main.py
 network_frontend/htsimpy/packets/__init__.py
 network_frontend/htsimpy/packets/base_packet.py
 network_frontend/htsimpy/packets/ndp_packet.py
@@ -37,6 +41,7 @@ network_frontend/htsimpy/protocols/__init__.py
 network_frontend/htsimpy/protocols/base_protocol.py
 network_frontend/htsimpy/queues/__init__.py
 network_frontend/htsimpy/queues/base_queue.py
+network_frontend/htsimpy/queues/fifo_queue.py
 network_frontend/ns3/AstraSimNetwork.py
 network_frontend/ns3/__init__.py
 network_frontend/ns3/common.py

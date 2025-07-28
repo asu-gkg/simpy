@@ -28,6 +28,7 @@ from .logger.core import Logged
 # 避免循环导入
 if TYPE_CHECKING:
     from .logger import TrafficLogger
+    from .route import Route
 
 # 前向声明类型 - 对应 C++ 中的前向声明
 class LosslessInputQueue:
@@ -520,6 +521,8 @@ class Packet(ABC):
         """
         对应 C++ 中的 Packet::set_attrs()
         后期绑定路由时使用
+        
+        精确对应C++版本的字段设置顺序和值
         """
         self._flow = flow
         self._size = pkt_size
@@ -527,38 +530,42 @@ class Packet(ABC):
         self._id = packet_id
         self._nexthop = 0
         self._oldnexthop = 0
-        self._route = None
-        self._is_header = False
+        # //_detour = NULL;  // C++版本中已注释
+        self._route = None  # 对应 C++ 中的 _route = 0
+        self._is_header = False  # 对应 C++ 中的 _is_header = 0
         self._flags = 0
-        self._next_routed_hop = None
+        self._next_routed_hop = None  # 对应 C++ 中的 _next_routed_hop = 0
     
     def set_route(self, route_or_flow, route: Optional[List['PacketSink']] = None, 
-                  pkt_size: Optional[int] = None, packet_id: Optional[PacketId] = None) -> None:
+                pkt_size: Optional[int] = None, packet_id: Optional[PacketId] = None) -> None:
         """
         对应 C++ 中的多个 Packet::set_route() 重载
         """
         if isinstance(route_or_flow, PacketFlow) and route is not None:
             # set_route(PacketFlow& flow, const Route &route, int pkt_size, packetid_t id)
-            self._flow = route_or_flow
+            # 精确对应C++版本的字段设置顺序
+            self._flow = route_or_flow  # 对应 _flow = &flow
             self._size = pkt_size
             self._oldsize = pkt_size
             self._id = packet_id
             self._nexthop = 0
             self._oldnexthop = 0
-            self._route = RouteWithReverse(route)
-            self._is_header = False
+            # //_detour = NULL;  // C++版本中已注释
+            self._route = RouteWithReverse(route)  # 对应 _route = &route
+            self._is_header = False  # 对应 _is_header = 0
             self._flags = 0
+            # C++版本没有设置_path_len，但这是有益的改进
             self._path_len = len(route)
-        elif isinstance(route_or_flow, list):
+        elif isinstance(route_or_flow, list) or route_or_flow.__class__.__name__ == 'Route':
             # set_route(const Route &route) 或 set_route(const Route *route)
             self._route = RouteWithReverse(route_or_flow)
             self._nexthop = 0
-            if route_or_flow:
-                self._path_len = len(route_or_flow)
+            self._path_len = len(route_or_flow) if route_or_flow else 0  # 对应 C++ 中路径长度设置
         elif route_or_flow is None:
             # set_route(const Route *route=nullptr)
             self._route = None
             self._nexthop = 0
+            self._path_len = 0  # 对应 C++ 中路径长度设置
         else:
             raise ValueError("Invalid arguments for set_route")
     
@@ -581,8 +588,44 @@ class Packet(ABC):
         """
         对应 C++ 中的 Packet::str()
         返回数据包类型的字符串表示，精确对应C++版本的switch语句
+        
+        注意：C++版本中STRACK和STRACKACK的case有bug，返回了错误的字符串
+        我们这里修复了这个bug，返回正确的字符串
         """
-        return self._type
+        # 创建映射表，对应C++版本的switch语句（修复了C++版本的bug）
+        type_map = {
+            PacketType.IP: "IP",
+            PacketType.TCP: "TCP", 
+            PacketType.TCPACK: "TCPACK",
+            PacketType.TCPNACK: "TCPNACK",
+            PacketType.SWIFT: "SWIFT",
+            PacketType.SWIFTACK: "SWIFTACK",
+            PacketType.STRACK: "STRACK",  # C++版本错误返回"SWIFT"
+            PacketType.STRACKACK: "STRACKACK",  # C++版本错误返回"SWIFTACK"
+            PacketType.NDP: "NDP",
+            PacketType.NDPACK: "NDPACK",
+            PacketType.NDPNACK: "NDPNACK", 
+            PacketType.NDPPULL: "NDPPULL",
+            PacketType.NDPRTS: "NDPRTS",
+            PacketType.NDPLITE: "NDPLITE",
+            PacketType.NDPLITEACK: "NDPLITEACK",
+            PacketType.NDPLITERTS: "NDPLITERTS",
+            PacketType.NDPLITEPULL: "NDPLITEPULL",
+            PacketType.ETH_PAUSE: "ETHPAUSE",
+            PacketType.TOFINO_TRIM: "TofinoTrimPacket",
+            PacketType.ROCE: "ROCE",
+            PacketType.ROCEACK: "ROCEACK",
+            PacketType.ROCENACK: "ROCENACK",
+            PacketType.HPCC: "HPCC",
+            PacketType.HPCCACK: "HPCCACK",
+            PacketType.HPCCNACK: "HPCCNACK",
+            PacketType.EQDSDATA: "EQDSDATA",
+            PacketType.EQDSPULL: "EQDSPULL",
+            PacketType.EQDSACK: "EQDSACK",
+            PacketType.EQDSNACK: "EQDSNACK",
+            PacketType.EQDSRTS: "EQDSRTS"
+        }
+        return type_map.get(self._type, self._type)
     
     # 属性访问器
     @property

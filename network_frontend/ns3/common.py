@@ -14,7 +14,11 @@ from dataclasses import dataclass
 from enum import Enum
 import logging
 
-# NS3 Python绑定导入
+# NS3 Python绑定导入和兼容性处理
+NS3_AVAILABLE = False
+HAS_QBB = False
+ns = None
+
 try:
     import ns.core
     import ns.network
@@ -24,18 +28,237 @@ try:
     import ns.mobility
     import ns.wifi
     import ns.csma
-    # 导入自定义的NS3模块
+    
+    # 创建ns命名空间对象
+    class NSNamespace:
+        """NS3 namespace wrapper"""
+        def __init__(self):
+            self.core = ns.core
+            self.network = ns.network
+            self.internet = ns.internet
+            self.point_to_point = ns.point_to_point
+            self.applications = ns.applications
+            self.mobility = ns.mobility
+            self.wifi = ns.wifi
+            self.csma = ns.csma
+            self.Simulator = ns.core.Simulator
+            
+    ns = NSNamespace()
+    NS3_AVAILABLE = True
+    logging.info("NS3 Python bindings loaded successfully")
+    
+    # 尝试导入自定义的NS3模块
     try:
         import ns.qbb
         import ns.rdma
+        ns.qbb = ns.qbb
+        ns.rdma = ns.rdma
         HAS_QBB = True
+        logging.info("QBB and RDMA modules loaded successfully")
     except ImportError:
         HAS_QBB = False
         logging.warning("QBB and RDMA modules not available, using standard NS3 modules")
+        
 except ImportError as e:
-    logging.error(f"NS3 Python bindings not found: {e}")
-    logging.error("Please install NS3 with Python bindings enabled")
-    sys.exit(1)
+    logging.warning(f"NS3 Python bindings not found: {e}")
+    logging.warning("Running in mock mode - NS3 functionality will be simulated")
+    
+    # 创建Mock NS3对象以支持开发和测试
+    class MockSimulator:
+        """Mock NS3 Simulator for development"""
+        @staticmethod
+        def Now():
+            class MockTime:
+                def GetNanoSeconds(self):
+                    return int(time.time() * 1e9)
+                def GetTimeStep(self):
+                    return int(time.time() * 1e9)
+            return MockTime()
+        
+        @staticmethod
+        def Schedule(delay, callback, *args):
+            # 在实际实现中，这里应该调度事件
+            logging.debug(f"Mock Schedule: delay={delay}, callback={callback}")
+            
+        @staticmethod
+        def Run():
+            logging.info("Mock NS3 Simulator.Run() called")
+            
+        @staticmethod
+        def Stop(stop_time):
+            logging.info(f"Mock NS3 Simulator.Stop() called with {stop_time}")
+            
+        @staticmethod
+        def Destroy():
+            logging.info("Mock NS3 Simulator.Destroy() called")
+    
+    class MockCore:
+        Simulator = MockSimulator
+        
+        @staticmethod
+        def Seconds(s):
+            return s * 1e9
+            
+        @staticmethod
+        def NanoSeconds(ns):
+            return ns
+            
+        @staticmethod
+        def MicroSeconds(us):
+            return us * 1000
+            
+        class StringValue:
+            def __init__(self, value):
+                self.value = value
+                
+        class UintegerValue:
+            def __init__(self, value):
+                self.value = value
+                
+        class BooleanValue:
+            def __init__(self, value):
+                self.value = value
+                
+        class GlobalValue:
+            @staticmethod
+            def Bind(name, value):
+                pass
+                
+        class Config:
+            @staticmethod
+            def SetDefault(name, value):
+                pass
+    
+    class MockNetwork:
+        class NodeContainer:
+            def __init__(self):
+                self.nodes = []
+                
+            def Create(self, n):
+                self.nodes = list(range(n))
+                
+            def Get(self, i):
+                class MockNode:
+                    def __init__(self, id):
+                        self.id = id
+                    def GetId(self):
+                        return self.id
+                    def GetDevice(self, idx):
+                        return None
+                return MockNode(i)
+                
+            def GetN(self):
+                return len(self.nodes)
+                
+        class Ipv4Address:
+            def __init__(self, addr):
+                self.addr = addr
+                
+            def Get(self):
+                return self.addr
+                
+        class Ipv4Mask:
+            def __init__(self, mask):
+                self.mask = mask
+    
+    class MockInternet:
+        class InternetStackHelper:
+            def Install(self, nodes):
+                pass
+                
+        class Ipv4AddressHelper:
+            def SetBase(self, addr, mask):
+                pass
+            def Assign(self, devices):
+                pass
+    
+    class MockPointToPoint:
+        class PointToPointHelper:
+            def SetDeviceAttribute(self, name, value):
+                pass
+            def SetChannelAttribute(self, name, value):
+                pass
+            def Install(self, n1, n2):
+                class MockDeviceContainer:
+                    def Get(self, i):
+                        class MockDevice:
+                            def GetIfIndex(self):
+                                return i
+                            def GetDataRate(self):
+                                class MockDataRate:
+                                    def GetBitRate(self):
+                                        return 100000000000  # 100Gbps
+                                return MockDataRate()
+                        return MockDevice()
+                return MockDeviceContainer()
+    
+    # 创建Mock ns命名空间
+    class MockNSNamespace:
+        def __init__(self):
+            self.core = MockCore
+            self.network = MockNetwork
+            self.internet = MockInternet
+            self.point_to_point = MockPointToPoint
+            self.applications = None
+            self.mobility = None
+            self.wifi = None
+            self.csma = None
+            self.Simulator = MockCore.Simulator
+            
+    ns = MockNSNamespace()
+
+# ==================== 辅助函数 ====================
+
+def get_ns3_time():
+    """获取当前NS3仿真时间（纳秒）"""
+    if NS3_AVAILABLE:
+        return ns.Simulator.Now().GetNanoSeconds()
+    else:
+        return int(time.time() * 1e9)
+
+def schedule_ns3_event(delay_ns, callback, *args):
+    """调度NS3事件"""
+    if NS3_AVAILABLE:
+        ns.Simulator.Schedule(ns.core.NanoSeconds(delay_ns), callback, *args)
+    else:
+        # Mock模式下直接调用回调
+        logging.debug(f"Mock scheduling event after {delay_ns}ns")
+        # 在实际应用中，这里应该使用真正的事件队列
+        if callback:
+            callback(*args)
+
+def setup_network_globals():
+    """设置网络全局变量"""
+    global port_number, server_address, pair_rtt, pair_bw, pair_bdp
+    global has_win, global_t, max_bdp, max_rtt
+    
+    # 初始化端口号映射
+    port_number = {}
+    
+    # 初始化服务器地址映射
+    server_address = {}
+    
+    # 初始化RTT、带宽、BDP映射
+    pair_rtt = {}
+    pair_bw = {}
+    pair_bdp = {}
+    
+    # 设置默认值
+    max_rtt = 1000000  # 1ms in ns
+    max_bdp = 12500000  # 100Gbps * 1ms / 8
+
+def configure_ns3_logging():
+    """配置NS3日志"""
+    if NS3_AVAILABLE:
+        try:
+            ns.core.LogComponentEnable("OnOffApplication", ns.core.LOG_LEVEL_INFO)
+            ns.core.LogComponentEnable("PacketSink", ns.core.LOG_LEVEL_INFO)
+            logging.info("NS3 logging configured")
+        except Exception as e:
+            logging.warning(f"Failed to configure NS3 logging: {e}")
+
+# 结果路径
+RESULT_PATH = "./output/ns3_"
 
 # ==================== 全局配置变量 ====================
 
@@ -138,10 +361,19 @@ rate2pmax: Dict[int, float] = {}
 
 # 网络状态变量
 nic_rate: int = 0
-maxRtt: int = 0
-maxBdp: int = 0
-serverAddress: List[ns.network.Ipv4Address] = []
+serverAddress: List[Any] = []  # List[ns.network.Ipv4Address] in NS3 mode
 portNumber: Dict[int, Dict[int, int]] = {}
+
+# 添加entry.py需要的全局变量
+port_number: Dict[int, Dict[int, int]] = {}  # 端口号映射
+server_address: Dict[int, Any] = {}  # 服务器地址映射
+pair_rtt: Dict[int, Dict[int, int]] = {}  # RTT映射
+pair_bw: Dict[int, Dict[int, int]] = {}  # 带宽映射  
+pair_bdp: Dict[int, Dict[int, int]] = {}  # BDP映射
+has_win: int = 1  # 窗口标志
+global_t: int = 1  # 全局时间
+max_bdp: int = 0  # 最大BDP
+max_rtt: int = 0  # 最大RTT
 
 # NS3对象
 n: ns.network.NodeContainer = None
@@ -187,39 +419,104 @@ class QlenDistribution:
 flow_input: FlowInput = FlowInput()
 flow_num: int = 0
 
-# 网络拓扑映射 - 使用NS3节点对象
-nbr2if: Dict[ns.network.Node, Dict[ns.network.Node, Interface]] = {}
-nextHop: Dict[ns.network.Node, Dict[ns.network.Node, List[ns.network.Node]]] = {}
-pairDelay: Dict[ns.network.Node, Dict[ns.network.Node, int]] = {}
-pairTxDelay: Dict[ns.network.Node, Dict[ns.network.Node, int]] = {}
-pairBw: Dict[int, Dict[int, int]] = {}
-pairBdp: Dict[ns.network.Node, Dict[ns.network.Node, int]] = {}
-pairRtt: Dict[int, Dict[int, int]] = {}
+# 网络拓扑映射 - 使用节点ID或NS3节点对象
+# 在Mock模式下使用int作为节点标识，在NS3模式下使用Node对象
+if NS3_AVAILABLE:
+    NodeType = Any  # 实际是ns.network.Node
+else:
+    NodeType = int  # Mock模式下使用整数ID
+
+nbr2if: Dict[NodeType, Dict[NodeType, Interface]] = {}
+nextHop: Dict[NodeType, Dict[NodeType, List[NodeType]]] = {}
+pairDelay: Dict[NodeType, Dict[NodeType, int]] = {}
+pairTxDelay: Dict[NodeType, Dict[NodeType, int]] = {}
+
+# 结果路径
+RESULT_PATH = "./ncclFlowModel_"
 
 # ==================== NS3功能函数 ====================
 
-def node_id_to_ip(node_id: int) -> ns.network.Ipv4Address:
+def get_ns3_time():
+    """Get current NS3 simulation time in nanoseconds"""
+    if NS3_AVAILABLE:
+        return ns.core.Simulator.Now().GetNanoSeconds()
+    else:
+        # Mock mode - return system time in nanoseconds
+        return int(time.time() * 1e9)
+
+def schedule_ns3_event(delay_ns, callback, *args):
+    """Schedule an NS3 event"""
+    if NS3_AVAILABLE:
+        ns.core.Simulator.Schedule(ns.core.NanoSeconds(delay_ns), callback, *args)
+    else:
+        # Mock mode - use threading timer
+        from threading import Timer
+        delay_s = delay_ns / 1e9
+        timer = Timer(delay_s, callback, args)
+        timer.start()
+
+def setup_network_globals():
+    """Setup global network variables"""
+    global server_address, port_number
+    
+    # Initialize server addresses
+    server_address = {}
+    for i in range(node_num):
+        server_address[i] = node_id_to_ip(i)
+        
+    # Initialize port numbers
+    port_number = {}
+    for i in range(node_num):
+        port_number[i] = {}
+
+def configure_ns3_logging():
+    """Configure NS3 logging"""
+    if NS3_AVAILABLE:
+        # Enable NS3 logging components
+        pass  # NS3 LogComponentEnable would go here
+    else:
+        logging.info("Mock mode - NS3 logging not configured")
+
+# ==================== NS3功能函数 ====================
+
+def node_id_to_ip(node_id: int):
     """将节点ID转换为IP地址 - 使用NS3 Ipv4Address"""
     # C++: return Ipv4Address(0x0b000001 + ((id / 256) * 0x00010000) + ((id % 256) * 0x00000100));
     ip_int = 0x0b000001 + ((node_id // 256) * 0x00010000) + ((node_id % 256) * 0x00000100)
-    return ns.network.Ipv4Address(ip_int)
+    if NS3_AVAILABLE:
+        return ns.network.Ipv4Address(ip_int)
+    else:
+        # Mock模式下返回整数表示
+        return ip_int
 
-def ip_to_node_id(ip: ns.network.Ipv4Address) -> int:
+def ip_to_node_id(ip) -> int:
     """将IP地址转换为节点ID"""
     # C++: return (ip.Get() >> 8) & 0xffff;
-    return (ip.Get() >> 8) & 0xffff
+    if NS3_AVAILABLE and hasattr(ip, 'Get'):
+        return (ip.Get() >> 8) & 0xffff
+    else:
+        # Mock模式下假设ip是整数
+        return (ip >> 8) & 0xffff if isinstance(ip, int) else 0
 
 def get_pfc(fout, dev, msg_type: int):
     """获取PFC统计信息 - 使用NS3 Simulator时间"""
     if fout is not None:
-        current_time = ns.core.Simulator.Now().GetTimeStep()
-        node_id = dev.GetNode().GetId()
-        node_type = getattr(dev.GetNode(), 'GetNodeType', lambda: 0)()
-        if_index = dev.GetIfIndex()
+        current_time = ns.core.Simulator.Now().GetTimeStep() if NS3_AVAILABLE else int(time.time() * 1e9)
+        
+        if NS3_AVAILABLE and dev is not None:
+            node_id = dev.GetNode().GetId()
+            node_type = getattr(dev.GetNode(), 'GetNodeType', lambda: 0)()
+            if_index = dev.GetIfIndex()
+        else:
+            # Mock模式下使用默认值
+            node_id = 0
+            node_type = 0
+            if_index = 0
+            
         fout.write(f"{current_time} {node_id} {node_type} {if_index} {msg_type}\n")
         fout.flush()
 
-def monitor_qlen(qlen_output, nodes: ns.network.NodeContainer):
+def monitor_qlen(qlen_output, nodes):
     """监控队列长度 - 使用NS3节点容器"""
     if qlen_output is None or nodes is None:
         return
@@ -242,7 +539,7 @@ def monitor_qlen(qlen_output, nodes: ns.network.NodeContainer):
         monitor_qlen, qlen_output, nodes
     )
 
-def monitor_bw(bw_output, nodes: ns.network.NodeContainer):
+def monitor_bw(bw_output, nodes):
     """监控带宽使用情况"""
     if bw_output is None or nodes is None:
         return
@@ -270,7 +567,7 @@ def monitor_bw(bw_output, nodes: ns.network.NodeContainer):
         monitor_bw, bw_output, nodes
     )
 
-def monitor_qp_rate(rate_output, nodes: ns.network.NodeContainer):
+def monitor_qp_rate(rate_output, nodes):
     """监控QP速率"""
     if rate_output is None or nodes is None:
         return
@@ -292,7 +589,7 @@ def monitor_qp_rate(rate_output, nodes: ns.network.NodeContainer):
         monitor_qp_rate, rate_output, nodes
     )
 
-def monitor_qp_cnp_number(cnp_output, nodes: ns.network.NodeContainer):
+def monitor_qp_cnp_number(cnp_output, nodes):
     """监控QP CNP数量"""
     if cnp_output is None or nodes is None:
         return
@@ -358,7 +655,7 @@ def schedule_monitor():
     except IOError as e:
         logging.error(f"Failed to create monitor files: {e}")
 
-def CalculateRoute(host: ns.network.Node):
+def CalculateRoute(host):
     """计算单个主机的路由 - 使用NS3节点对象"""
     global nbr2if, nextHop, pairDelay, pairTxDelay, pairBw, pairBdp
     
@@ -453,7 +750,7 @@ def CalculateRoute(host: ns.network.Node):
             pairBw[node_id] = {}
         pairBw[node_id][host_id] = b
 
-def CalculateRoutes(nodes: ns.network.NodeContainer):
+def CalculateRoutes(nodes):
     """计算所有路由"""
     if nodes is None:
         return
@@ -563,7 +860,7 @@ def validateRoutingEntries() -> bool:
     """验证路由表项"""
     return False
 
-def TakeDownLink(nodes: ns.network.NodeContainer, a: ns.network.Node, b: ns.network.Node):
+def TakeDownLink(nodes, a, b):
     """断开链路 - 使用NS3网络设备接口"""
     global nbr2if, nextHop
     
@@ -639,7 +936,7 @@ def get_output_file_name(config_file: str, output_file: str) -> str:
     except (IndexError, AttributeError):
         return output_file
 
-def get_nic_rate(nodes: ns.network.NodeContainer) -> int:
+def get_nic_rate(nodes) -> int:
     """获取网卡速率 - 使用NS3网络设备"""
     if nodes is None:
         return 0
@@ -736,6 +1033,18 @@ def SetupNetwork(qp_finish_callback=None, send_finish_callback=None):
     global topology_file, flow_file, trace_file, node_num, switch_num, link_num
     global nvswitch_num, trace_num, flow_num, gpu_type, gpus_per_server
     global serverAddress, portNumber, flow_input, nic_rate, maxRtt, maxBdp, n
+    
+    if not NS3_AVAILABLE:
+        logging.warning("NS3 not available, using mock network setup")
+        # Mock模式下的简单设置
+        n = ns.network.NodeContainer()
+        node_num = 8  # 默认8个节点
+        n.Create(node_num)
+        serverAddress = []
+        for i in range(node_num):
+            serverAddress.append(node_id_to_ip(i))
+        logging.info(f"Mock network setup completed: {node_num} nodes")
+        return True
     
     try:
         # 初始化NS3全局参数

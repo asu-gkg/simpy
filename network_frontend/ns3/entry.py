@@ -8,14 +8,18 @@ Contains data structures, global hash maps, and helper functions for NS3 integra
 from __future__ import annotations
 import threading
 import os
+import logging
 from typing import Dict, Tuple, Optional, Callable, Any, List
 from dataclasses import dataclass
 from queue import Queue
 from .common import (
-    ns, NS3_AVAILABLE, setup_network_globals, port_number, server_address,
+    ns, NS3_AVAILABLE, port_number, server_address,
     pair_rtt, pair_bw, pair_bdp, has_win, global_t, max_bdp, max_rtt,
     packet_payload_size, flow_input, node_num, switch_num, nvswitch_num,
-    configure_ns3_logging
+    setup_network_globals, gpu_type, gpus_per_server, topology_file,
+    enable_qcn, use_dynamic_pfc_threshold, pause_time, cc_mode, 
+    data_rate, link_delay, NodeType, Interface, nbr2if, serverAddress,
+    GPUType, NVswitchs, SetConfig, SetupNetwork, ReadConf
 )
 from system.AstraNetworkAPI import NcclFlowTag, SimRequest
 
@@ -71,36 +75,118 @@ sent_chunksize: Dict[Tuple[int, Tuple[int, int]], int] = {}
 # Thread synchronization (for thread safety like C++)
 _hash_map_lock = threading.RLock()
 
-# Mock implementations for functions not yet implemented
+# Network configuration and setup functions
 def read_conf(network_topo: str, network_conf: str) -> bool:
-    """Mock implementation of ReadConf function"""
-    print(f"Reading network topology: {network_topo}")
-    print(f"Reading network configuration: {network_conf}")
-    # TODO: Implement actual file reading
-    return True
+    """Read network configuration files - corresponds to C++ ReadConf"""
+    from . import common
+    
+    try:
+        # Read topology file
+        if not os.path.exists(network_topo):
+            logging.error(f"Topology file not found: {network_topo}")
+            return False
+            
+        with open(network_topo, 'r') as topo_file:
+            # Read first line: node_num gpus_per_server nvswitch_num switch_num link_num gpu_type
+            first_line = topo_file.readline().strip().split()
+            if len(first_line) >= 5:
+                common.node_num = int(first_line[0])
+                common.gpus_per_server = int(first_line[1])
+                common.nvswitch_num = int(first_line[2])
+                common.switch_num = int(first_line[3])
+                common.link_num = int(first_line[4])
+                
+                if len(first_line) > 5:
+                    gpu_type_str = first_line[5]
+                    # Map GPU type string to enum
+                    gpu_type_map = {
+                        "A100": common.GPUType.A100,
+                        "A800": common.GPUType.A800,
+                        "H100": common.GPUType.H100,
+                        "H800": common.GPUType.H800,
+                        "NONE": common.GPUType.NONE
+                    }
+                    common.gpu_type = gpu_type_map.get(gpu_type_str, common.GPUType.NONE)
+            
+            logging.info(f"Topology: {common.node_num} nodes, {common.gpus_per_server} GPUs/server, "
+                        f"{common.nvswitch_num} NVSwitches, {common.switch_num} switches, "
+                        f"{common.link_num} links")
+        
+        # Read configuration file
+        if network_conf and os.path.exists(network_conf):
+            common.ReadConf(network_topo, network_conf)
+        
+        return True
+        
+    except Exception as e:
+        logging.error(f"Failed to read configuration: {e}")
+        return False
 
 def set_config():
-    """Mock implementation of SetConfig function"""
-    print("Setting up network configuration")
-    # TODO: Implement actual configuration setup
+    """Set NS3 configuration parameters - corresponds to C++ SetConfig"""
+    from . import common
+    
+    logging.info("Setting NS3 configuration parameters")
+    
+    if NS3_AVAILABLE:
+        # Set NS3 configuration using Config system
+        common.SetConfig()
+    else:
+        # Mock mode - just log the configuration
+        logging.info(f"Mock mode - Configuration: cc_mode={common.cc_mode}, "
+                    f"enable_qcn={common.enable_qcn}, pause_time={common.pause_time}")
 
 def setup_network(qp_finish_cb, send_finish_cb):
-    """Mock implementation of SetupNetwork function"""
-    print("Setting up NS3 network")
-    # TODO: Implement actual NS3 network setup
+    """Setup NS3 network topology - corresponds to C++ SetupNetwork"""
+    from . import common
+    
+    logging.info(f"Setting up network with {common.node_num} nodes")
+    
+    if NS3_AVAILABLE:
+        # Use actual NS3 network setup
+        success = common.SetupNetwork(qp_finish_cb, send_finish_cb)
+        if success:
+            logging.info("NS3 network setup completed successfully")
+        else:
+            logging.error("NS3 network setup failed")
+        return success
+    else:
+        # Mock mode network setup
+        logging.info("Mock mode - Simulating network setup")
+        
+        # Initialize port numbers for each node pair
+        for i in range(common.node_num):
+            common.port_number[i] = {}
+            for j in range(common.node_num):
+                if i != j:
+                    common.port_number[i][j] = 9000
+                    
+        # Initialize server addresses
+        common.server_address = {}
+        for i in range(common.node_num):
+            common.server_address[i] = 0x0b000001 + ((i // 256) * 0x00010000) + ((i % 256) * 0x00000100)
+            
+        # Initialize pair RTT and bandwidth (mock values)
+        gpu_num = common.node_num - common.nvswitch_num - common.switch_num
+        for i in range(gpu_num):
+            common.pair_rtt[i] = {}
+            common.pair_bw[i] = {}
+            for j in range(gpu_num):
+                if i != j:
+                    # Mock RTT in microseconds
+                    common.pair_rtt[i][j] = 10 if abs(i - j) <= common.gpus_per_server else 100
+                    # Mock bandwidth in bps (100Gbps for local, 25Gbps for remote)
+                    common.pair_bw[i][j] = 100000000000 if abs(i - j) <= common.gpus_per_server else 25000000000
+                    
+        logging.info(f"Mock network setup completed: {gpu_num} GPUs, {common.nvswitch_num} NVSwitches")
+        return True
 
-# Use the system MockNcclLog directly
+# Import MockNcclLog from system module
+from system.mock_nccl_log import MockNcclLog, NcclLogLevel as MockNcclLogLevel
+
 def get_mock_nccl_log():
     """Get MockNcclLog instance"""
-    try:
-        from system.mock_nccl_log import MockNcclLog, NcclLogLevel
-        return MockNcclLog.getInstance(), NcclLogLevel
-    except ImportError:
-        # Fallback mock
-        class MockLog:
-            def writeLog(self, level, msg, *args):
-                print(f"[LOG] {msg % args if args else msg}")
-        return MockLog(), None
+    return MockNcclLog.getInstance(), MockNcclLogLevel
 
 def is_sending_finished(src: int, dst: int, flowTag: NcclFlowTag) -> bool:
     """
@@ -219,8 +305,8 @@ def SendFlow(src: int, dst: int, maxPacketCount: int,
         
         # Log packet sending like C++
         if NcclLogLevel:
-            # Get current simulation tick (simplified)
-            tick = 0  # Would need Sys::boostedTick() equivalent
+            # Get current simulation tick
+            tick = ns.core.Simulator.Now().GetNanoSeconds() if NS3_AVAILABLE else int(os.times()[4] * 1e9)
             
             NcclLog.writeLog(NcclLogLevel.DEBUG,
                 " [Packet sending event] %d SendFlow to %d channelid: %d flow_id %d srcip %d dstip %d size: %d at the tick: %d",
@@ -235,10 +321,28 @@ def SendFlow(src: int, dst: int, maxPacketCount: int,
                 server_address.get(src, 0), server_address.get(dst, 0),
                 maxPacketCount, tick)
         
-        # Create NS3 RdmaClientHelper equivalent (simplified for Python)
+        # Create NS3 flow or simulate in Mock mode
         if NS3_AVAILABLE:
             # TODO: Implement actual NS3 RdmaClientHelper equivalent
-            pass
+            # For now, schedule a completion event
+            completion_time = ns.core.NanoSeconds(send_lat + (real_PacketCount * 8 * 1000) // 100000)  # Assume 100Gbps
+            ns.core.Simulator.Schedule(completion_time, 
+                                     lambda: _handle_send_completion(src, dst, request.flowTag, msg_handler, fun_arg))
+        else:
+            # Mock mode - simulate sending with a delayed callback
+            import time
+            from threading import Timer
+            
+            # Calculate simulated transfer time (nanoseconds to seconds)
+            transfer_time_ns = send_lat + (real_PacketCount * 8 * 1000000000) // pair_bw.get(src, {}).get(dst, 100000000000)
+            transfer_time_s = transfer_time_ns / 1e9
+            
+            # Schedule completion callback
+            def mock_send_completion():
+                _handle_send_completion(src, dst, request.flowTag, msg_handler, fun_arg)
+                
+            timer = Timer(transfer_time_s, mock_send_completion)
+            timer.start()
         
         # Update waiting counters like C++
         with _hash_map_lock:
@@ -251,6 +355,17 @@ def SendFlow(src: int, dst: int, maxPacketCount: int,
                 "waiting_to_notify_receiver current_flow_id %d src %d dst %d count %d",
                 request.flowTag.current_flow_id, src, dst,
                 waiting_to_notify_receiver.get((request.flowTag.tag_id, (src, dst)), 0))
+
+def _handle_send_completion(src: int, dst: int, flowTag: NcclFlowTag, 
+                           msg_handler: Callable[[Any], None], fun_arg: Any):
+    """Handle send completion - internal helper function"""
+    # Notify receiver that data has arrived
+    notify_receiver_receive_data(src, dst, flowTag.size, flowTag)
+    
+    # Check if sending is finished
+    if is_sending_finished(src, dst, flowTag):
+        # Notify sender
+        notify_sender_sending_finished(src, dst, flowTag.size, flowTag)
 
 def notify_receiver_receive_data(sender_node: int, receiver_node: int,
                                message_size: int, flowTag: NcclFlowTag) -> None:

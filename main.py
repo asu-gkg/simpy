@@ -37,7 +37,7 @@ def run_backend(args):
     if args.backend == "analytical":
         from network_frontend.analytical.analytical_astra import main as backend_main
     elif args.backend == "ns3":
-        from network_frontend.ns3.astra_sim_network import main as backend_main
+        from network_frontend.ns3.AstraSimNetwork import main as backend_main
     elif args.backend == "phynet":
         from network_frontend.phynet.sim_ai_main import main as backend_main
     else:
