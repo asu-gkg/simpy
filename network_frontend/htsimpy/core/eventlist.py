@@ -16,8 +16,7 @@ C++对应关系:
 """
 
 from abc import ABC, abstractmethod
-from typing import Optional, List, Tuple
-import bisect
+from typing import Optional, List, Tuple, Dict
 import sys
 
 # 导入日志系统相关类
@@ -115,29 +114,40 @@ class EventList:
     
     这是一个全局单例，管理所有事件的调度和执行
     严格按照C++实现的单例模式和静态成员变量
+    
+    重要：为了精确模拟C++ multimap的行为，我们使用了一个更复杂的数据结构
     """
     
     # 对应 C++ 静态成员变量
     _endtime: SimTime = 0
     _lasteventtime: SimTime = 0
-    _pendingsources: List[Tuple[SimTime, EventSource]] = []  # 对应 multimap<simtime_picosec, EventSource*>
     _pending_triggers: List[TriggerTarget] = []  # 对应 vector<TriggerTarget*>
     _instance_count: int = 0
     _the_event_list: Optional['EventList'] = None
     
+    # 使用字典+列表模拟C++ multimap的行为
+    # key是时间戳，value是该时间戳的所有事件源列表
+    _pending_by_time: Dict[SimTime, List[EventSource]] = {}
+    # 按时间排序的时间戳列表
+    _sorted_times: List[SimTime] = []
+    
     # Handle 类型 - 对应 C++ 中的 multimap iterator
     class Handle:
-        """对应 C++ 中的 EventList::Handle (multimap iterator)"""
-        def __init__(self, index: int = -1):
-            self.index = index
+        """
+        对应 C++ 中的 EventList::Handle (multimap iterator)
+        存储时间戳和事件源的引用，以便后续取消
+        """
+        def __init__(self, time: SimTime = -1, source: Optional[EventSource] = None):
+            self.time = time
+            self.source = source
         
         def __eq__(self, other):
             if isinstance(other, EventList.Handle):
-                return self.index == other.index
+                return self.time == other.time and self.source == other.source
             return False
         
         def is_valid(self) -> bool:
-            return self.index >= 0
+            return self.time >= 0 and self.source is not None
     
     def __init__(self):
         """对应 C++ 构造函数，确保单例模式"""
@@ -176,21 +186,40 @@ class EventList:
         触发器立即发生 - 无时间流逝；不保证以任何特定顺序发生
         （不要假设 FIFO 或 LIFO）
         """
-        # 触发器优先执行，立即执行 - 无时间流逝
-        if cls._pending_triggers:
-            target = cls._pending_triggers.pop()  # 对应 C++ 的 pop_back()
-            target.activate()
+        # triggers happen immediately - no time passes; no guarantee that
+        # they happen in any particular order (don't assume FIFO or LIFO).
+        if cls._pending_triggers:  # 对应 if (!_pending_triggers.empty())
+            target = cls._pending_triggers.pop()  # 对应 _pending_triggers.back() 和 pop_back()
+            target.activate()  # 对应 target->activate()
             return True
         
-        if not cls._pendingsources:
+        # 对应 if (_pendingsources.empty()) return false;
+        if not cls._sorted_times:
             return False
         
-        # 获取最早的事件（multimap按key排序，所以第一个是最早的）
-        nexteventtime, nextsource = cls._pendingsources.pop(0)  # 对应 C++ 的 begin() 和 erase()
+        # 对应 simtime_picosec nexteventtime = _pendingsources.begin()->first;
+        nexteventtime = cls._sorted_times[0]
         
-        assert nexteventtime >= cls._lasteventtime, "Event time must be >= current time"
-        # 在调用 doNextEvent 之前设置时间，以便 this::now() 准确
+        # 对应 EventSource* nextsource = _pendingsources.begin()->second;
+        sources = cls._pending_by_time.get(nexteventtime, [])
+        if not sources:
+            # 清理空的时间条目
+            cls._sorted_times.pop(0)
+            del cls._pending_by_time[nexteventtime]
+            return cls.do_next_event()  # 递归处理下一个
+        
+        nextsource = sources.pop(0)
+        
+        # 对应 _pendingsources.erase(_pendingsources.begin());
+        if not sources:
+            cls._sorted_times.pop(0)
+            del cls._pending_by_time[nexteventtime]
+        
+        # 对应 assert(nexteventtime >= _lasteventtime);
+        assert nexteventtime >= cls._lasteventtime
+        # 对应 _lasteventtime = nexteventtime;
         cls._lasteventtime = nexteventtime
+        # 对应 nextsource->doNextEvent();
         nextsource.do_next_event()
         return True
     
@@ -199,11 +228,21 @@ class EventList:
         """
         对应 C++ 中的 EventList::sourceIsPending()
         调度事件源在指定时间执行
+        
+        C++: void EventList::sourceIsPending(EventSource &src, simtime_picosec when)
         """
-        assert when >= cls.now(), "Cannot schedule event in the past"
+        # 对应 assert(when>=now());
+        assert when >= cls.now()
+        # 对应 if (_endtime==0 || when<_endtime)
         if cls._endtime == 0 or when < cls._endtime:
-            # 插入到有序列表中，保持时间顺序（模拟 multimap 的行为）
-            bisect.insort(cls._pendingsources, (when, src))
+            # 对应 _pendingsources.insert(make_pair(when,&src));
+            if when not in cls._pending_by_time:
+                cls._pending_by_time[when] = []
+                # 使用二分查找插入时间，保持排序
+                import bisect
+                bisect.insort(cls._sorted_times, when)
+            
+            cls._pending_by_time[when].append(src)
     
     @classmethod
     def source_is_pending_get_handle(cls, src: EventSource, when: SimTime) -> Handle:
@@ -213,11 +252,10 @@ class EventList:
         """
         assert when >= cls.now(), "Cannot schedule event in the past"
         if cls._endtime == 0 or when < cls._endtime:
-            entry = (when, src)
-            bisect.insort(cls._pendingsources, entry)
-            # 返回插入位置作为句柄
-            handle_index = cls._pendingsources.index(entry)
-            return cls.Handle(handle_index)
+            # 添加事件
+            cls.source_is_pending(src, when)
+            # 返回句柄
+            return cls.Handle(when, src)
         return cls.null_handle()
     
     @classmethod
@@ -234,9 +272,15 @@ class EventList:
         对应 C++ 中的 EventList::cancelPendingSource()
         取消待执行的事件源
         """
-        for i, (when, source) in enumerate(cls._pendingsources):
-            if source is src:
-                cls._pendingsources.pop(i)
+        # 遍历所有时间槽，查找并删除事件源
+        for when in list(cls._pending_by_time.keys()):
+            sources = cls._pending_by_time[when]
+            if src in sources:
+                sources.remove(src)
+                # 如果该时间没有更多事件，清理时间条目
+                if not sources:
+                    cls._sorted_times.remove(when)
+                    del cls._pending_by_time[when]
                 return
     
     @classmethod
@@ -246,11 +290,16 @@ class EventList:
         快速取消定时器 - 定时器必须存在
         这通常应该很快，除非我们有很多具有完全相同时间值的事件
         """
-        # 查找具有指定时间的所有事件
-        for i, (event_time, source) in enumerate(cls._pendingsources):
-            if event_time == when and source is src:
-                cls._pendingsources.pop(i)
+        if when in cls._pending_by_time:
+            sources = cls._pending_by_time[when]
+            if src in sources:
+                sources.remove(src)
+                # 如果该时间没有更多事件，清理时间条目
+                if not sources:
+                    cls._sorted_times.remove(when)
+                    del cls._pending_by_time[when]
                 return
+        
         # 如果没找到，按C++逻辑应该abort
         sys.exit(1)  # 对应 C++ 的 abort()
     
@@ -261,15 +310,25 @@ class EventList:
         如果我们经常取消定时器，按句柄取消它们。但要小心 - 
         取消已经被取消或已经过期的句柄是未定义的行为
         """
-        if not handle.is_valid() or handle.index >= len(cls._pendingsources):
+        if not handle.is_valid():
             raise RuntimeError("Invalid handle for cancellation")
         
-        when, source = cls._pendingsources[handle.index]
-        assert source is src, "Handle source mismatch"
-        assert handle.index < len(cls._pendingsources), "Handle out of range"
-        assert when >= cls.now(), "Cannot cancel past event"
+        assert handle.source is src, "Handle source mismatch"
+        assert handle.time >= cls.now(), "Cannot cancel past event"
         
-        cls._pendingsources.pop(handle.index)
+        # 使用handle中存储的时间和源进行精确取消
+        if handle.time in cls._pending_by_time:
+            sources = cls._pending_by_time[handle.time]
+            if handle.source in sources:
+                sources.remove(handle.source)
+                # 如果该时间没有更多事件，清理时间条目
+                if not sources:
+                    cls._sorted_times.remove(handle.time)
+                    del cls._pending_by_time[handle.time]
+            else:
+                raise RuntimeError("Handle source not found in pending sources")
+        else:
+            raise RuntimeError("Handle time not found in pending sources")
     
     @classmethod
     def reschedule_pending_source(cls, src: EventSource, when: SimTime) -> None:
@@ -299,4 +358,20 @@ class EventList:
     @classmethod
     def null_handle(cls) -> Handle:
         """对应 C++ 中的 EventList::nullHandle()"""
-        return cls.Handle(-1)  # _pendingsources.end() 等效
+        return cls.Handle(-1, None)  # _pendingsources.end() 等效
+    
+    @classmethod
+    def pending_count(cls) -> int:
+        """返回待处理事件的总数（用于测试和调试）"""
+        return sum(len(sources) for sources in cls._pending_by_time.values())
+    
+    @classmethod
+    def reset(cls) -> None:
+        """重置所有静态成员变量（仅用于测试）"""
+        cls._endtime = 0
+        cls._lasteventtime = 0
+        cls._pending_triggers.clear()
+        cls._pending_by_time.clear()
+        cls._sorted_times.clear()
+        cls._instance_count = 0
+        cls._the_event_list = None
