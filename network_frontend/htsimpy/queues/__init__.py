@@ -15,8 +15,10 @@ the different queue files in htsim:
 
 from .base_queue import BaseQueue
 from .fifo_queue import FIFOQueue
+from .random_queue import RandomQueue
 
 __all__ = [
     'BaseQueue',
     'FIFOQueue',
+    'RandomQueue',
 ]

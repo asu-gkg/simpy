@@ -20,7 +20,7 @@ from ..core.logger import Logged
 from ..core.route import Route
 
 
-class BaseProtocol(PacketSink, DataReceiver, EventSource):
+class BaseProtocol(EventSource, PacketSink, DataReceiver):
     """
     协议基类 - 对应各种协议文件的基类
     
@@ -28,10 +28,11 @@ class BaseProtocol(PacketSink, DataReceiver, EventSource):
     """
     
     def __init__(self, eventlist, name: str):
+        # 明确调用每个基类的__init__，避免重复调用Logged.__init__
+        EventSource.__init__(self, eventlist, name)  # 这会调用Logged.__init__
         PacketSink.__init__(self, name)
-        DataReceiver.__init__(self, name)
-        EventSource.__init__(self, eventlist, name)
-        Logged.__init__(self, name)
+        # 跳过DataReceiver.__init__以避免重复调用Logged.__init__
+        # 但我们需要初始化DataReceiver特有的属性（如果有的话）
         
         # 协议状态
         self._connected = False

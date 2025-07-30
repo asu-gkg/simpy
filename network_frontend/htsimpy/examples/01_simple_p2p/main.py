@@ -76,7 +76,7 @@ def main():
     # 4. 创建网络链路Pipe（对应pipe.h/cpp）
     print("4. 创建网络链路...")
     pipe = Pipe(
-        delay=1000000,  # 1ms延迟（1,000,000皮秒）
+        delay=1000000000,  # 1ms延迟（1,000,000,000皮秒）
         eventlist=eventlist
     )
     
@@ -131,9 +131,9 @@ def main():
     print("9. 运行仿真...")
     
     # 设置仿真结束时间（可选）
-    sim_end_time = 20_000_000 *1000  # 20ms（20,000,000皮秒）
+    sim_end_time = 20_000_000 *1000  # 20ms（20,000,000,000皮秒）
     eventlist.set_endtime(sim_end_time)
-    print(f"   设置仿真结束时间: {sim_end_time:,}ps ({sim_end_time/1_000_000:.1f}ms)")
+    print(f"   设置仿真结束时间: {sim_end_time:,}ps ({sim_end_time/1_000_000_000:.1f}ms)")
     
     # 运行事件循环
     print("   开始执行事件循环...")
@@ -143,7 +143,7 @@ def main():
     while event_count < max_events and eventlist.do_next_event():
         event_count += 1
         current_time = eventlist.now()
-        current_ms = current_time / 1_000_000
+        current_ms = current_time / 1_000_000_000  # 正确的皮秒转毫秒：÷10^9
         pending_events = len(eventlist._pendingsources)
         
         print(f"   执行事件 #{event_count}: 时间={current_time:,}ps ({current_ms:.3f}ms), 剩余事件={pending_events}")
@@ -168,12 +168,12 @@ def main():
     print(f"      - 队列中数据包数: {queue.packet_count}")
     print(f"      - 队列是否为空: {queue.is_empty}")
     print(f"    网络链路: {pipe}")
-    print(f"      - 延迟: {pipe._delay//1000000}ms")
+    print(f"      - 延迟: {pipe._delay//1000000000}ms")
     print(f"      - 传输中数据包: {pipe._count}")
     print(f"    路由信息: 路径长度={route.size()}, 跳数={route.hop_count()}")
-    print(f"    网络拓扑: 队列 -> 链路({pipe._delay//1000000}ms) -> 接收器")
+    print(f"    网络拓扑: 队列 -> 链路({pipe._delay//1000000000}ms) -> 接收器")
     print(f"    事件调度器详细状态:")
-    print(f"      - 当前仿真时间: {eventlist.now():,} 皮秒 ({eventlist.now()/1_000_000:.3f} ms)")
+    print(f"      - 当前仿真时间: {eventlist.now():,} 皮秒 ({eventlist.now()/1_000_000_000:.3f} ms)")
     print(f"      - 最后事件时间: {eventlist._lasteventtime:,} 皮秒")
     print(f"      - 结束时间设置: {eventlist._endtime:,} 皮秒")
     print(f"      - 实例计数: {eventlist._instance_count}")
@@ -182,7 +182,7 @@ def main():
     if eventlist._pendingsources:
         print("      - 待处理事件详情:")
         for i, (when, source) in enumerate(eventlist._pendingsources[:5]):  # 只显示前5个
-            time_ms = when / 1_000_000
+            time_ms = when / 1_000_000_000
             print(f"        [{i+1}] 时间: {when:,}ps ({time_ms:.3f}ms), 源: {source}")
         if len(eventlist._pendingsources) > 5:
             print(f"        ... 还有 {len(eventlist._pendingsources) - 5} 个事件")

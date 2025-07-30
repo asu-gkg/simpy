@@ -15,21 +15,15 @@ the different protocol files in htsim:
 """
 
 from .base_protocol import BaseProtocol
-from .tcp import TCP
-from .ndp import NDP
-from .swift import Swift
-from .roce import RoCE
-from .hpcc import HPCC
-from .strack import STrack
-from .dctcp import DCTCP
+from .tcp import TcpSrc, TcpSink, TcpRtxTimerScanner
+from .multipath_tcp import (
+    MultipathTcpSrc, MultipathTcpSink,
+    UNCOUPLED, FULLY_COUPLED, COUPLED_INC, COUPLED_TCP, COUPLED_EPSILON
+)
 
 __all__ = [
     'BaseProtocol',
-    'TCP',
-    'NDP', 
-    'Swift',
-    'RoCE',
-    'HPCC',
-    'STrack',
-    'DCTCP',
+    'TcpSrc', 'TcpSink', 'TcpRtxTimerScanner',
+    'MultipathTcpSrc', 'MultipathTcpSink',
+    'UNCOUPLED', 'FULLY_COUPLED', 'COUPLED_INC', 'COUPLED_TCP', 'COUPLED_EPSILON',
 ]

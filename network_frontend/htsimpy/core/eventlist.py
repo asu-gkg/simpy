@@ -62,6 +62,33 @@ class EventSource(Logged, ABC):
         super().__init__(name)  # 调用 Logged 的构造函数
         self._eventlist = eventlist
     
+    def __lt__(self, other):
+        """
+        对应 C++ 中 EventSource* 指针的比较
+        在 multimap 中当时间戳相同时用于排序
+        """
+        if not isinstance(other, EventSource):
+            return NotImplemented
+        return id(self) < id(other)
+    
+    def __le__(self, other):
+        """小于等于比较"""
+        if not isinstance(other, EventSource):
+            return NotImplemented
+        return id(self) <= id(other)
+    
+    def __gt__(self, other):
+        """大于比较"""
+        if not isinstance(other, EventSource):
+            return NotImplemented
+        return id(self) > id(other)
+    
+    def __ge__(self, other):
+        """大于等于比较"""
+        if not isinstance(other, EventSource):
+            return NotImplemented
+        return id(self) >= id(other)
+    
     @classmethod
     def create_with_name_only(cls, name: str):
         """对应 C++ 构造函数 EventSource(const string& name)"""

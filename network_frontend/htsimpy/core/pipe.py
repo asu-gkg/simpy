@@ -115,6 +115,7 @@ class Pipe(EventSource, PacketSink, Drawable):
             pkt.flow().log_traffic(pkt, self, TrafficLogger.TrafficEvent.PKT_DEPART)
         
         # 对应 C++ 中的 pkt->sendOn()
+        print(f"🚀 Pipe forwarding packet")
         pkt.send_on()
         
         # 对应 C++ 中的条件检查和事件调度

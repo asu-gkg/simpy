@@ -145,7 +145,7 @@ class BaseQueue(EventSource, PacketSink, Drawable, ABC):
         Returns:
             传输时间（皮秒）
         """
-        return packet.size * self._ps_per_byte
+        return packet.size() * self._ps_per_byte
     
     def serviceCapacity(self, t: int) -> int:
         """

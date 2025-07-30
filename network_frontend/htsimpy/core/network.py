@@ -108,7 +108,7 @@ def print_route(route: Route) -> None:
     print()
 
 
-class DataReceiver(ABC, Logged):
+class DataReceiver(Logged, ABC):
     """
     数据接收器 - 对应 network.h/cpp 中的 DataReceiver 类
     
