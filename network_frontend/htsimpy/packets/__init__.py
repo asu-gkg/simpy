@@ -14,7 +14,7 @@ the different packet header files in htsim:
 """
 
 from .base_packet import BasePacket
-from .tcp_packet import TCPPacket
+from .tcp_packet import TcpPacket, TcpAck
 from .ndp_packet import (
     PacketDB, PacketDirection,
     NDPPacket, NDPAck, NDPNack, NDPRTS, NDPPull
@@ -22,7 +22,8 @@ from .ndp_packet import (
 
 __all__ = [
     'BasePacket',
-    'TCPPacket', 
+    'TcpPacket',
+    'TcpAck', 
     # NDP协议包类型
     'PacketDB',
     'PacketDirection',

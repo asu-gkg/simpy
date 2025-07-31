@@ -10,6 +10,7 @@ This module contains the core components that correspond to the main htsim C++ f
 - pipe.py: 对应 pipe.h/cpp (网络管道)
 - config.py: 对应 config.h (配置定义)
 - logger.py: 对应 loggers.h/cpp (日志系统)
+- circular_buffer.py: 对应 circular_buffer.h (循环缓冲区)
 """
 
 from .eventlist import EventList, EventSource, TriggerTarget
@@ -20,11 +21,12 @@ from .routetable import RouteTable
 from .config import SimulationConfig
 from .logger import Logger, Logged, LoggedManager
 from .pipe import Pipe
+from .circular_buffer import CircularBuffer
 
 __all__ = [
     'EventList', 'EventSource', 'TriggerTarget',
     'Packet', 'PacketSink', 'PacketFlow', 'DataReceiver',
     'PacketType', 'PacketDirection', 'PacketPriority',
     'Route', 'RouteTable', 'SimulationConfig', 'Logger', 'Logged', 'LoggedManager',
-    'Pipe',
+    'Pipe', 'CircularBuffer',
 ]

@@ -17,12 +17,17 @@ C++对应关系:
 - TcpSink::receivePacket() -> TcpSink.receive_packet()
 """
 
-from typing import Optional, List
-from ..core.network import PacketSink, PacketFlow, DataReceiver
+from typing import Optional, List, TYPE_CHECKING
+from ..core.network import PacketSink, PacketFlow, DataReceiver, Packet
 from ..core.eventlist import EventSource
 from ..core.route import Route
-from ..packets.tcp_packet import TCPPacket, TcpAck
+from ..packets.tcp_packet import TcpPacket, TcpAck
+from ..core.logger.traffic import TrafficLogger
+from ..core.logger.tcp import TcpLogger
 import sys
+
+if TYPE_CHECKING:
+    from .multipath_tcp import MultipathTcpSrc, MultipathTcpSink
 
 # 常量定义 - 对应 C++ tcp.h 中的宏定义
 TIME_INF = 0
@@ -47,14 +52,14 @@ class TcpSrc(PacketSink, EventSource):
             eventlist: 事件调度器
         """
         EventSource.__init__(self, eventlist, "tcp")
-        PacketSink.__init__(self, "tcp")
+        PacketSink.__init__(self)
         
         # 对应 C++ 成员变量初始化
         self._logger = logger
-        self._flow = PacketFlow()
+        self._flow = PacketFlow(pktlogger)
         
         # 数据包相关 - 对应 C++ Packet::data_packet_size()
-        self._mss = 1500  # Maximum Segment Size
+        self._mss = Packet.data_packet_size()  # 对应 C++ _mss = Packet::data_packet_size()
         self._maxcwnd = 0xffffffff  # 对应 C++ 200*_mss 或 0xffffffff
         
         # 序列号和确认号 - 对应 C++ TcpSrc 序列号成员
@@ -110,10 +115,15 @@ class TcpSrc(PacketSink, EventSource):
         # 节点名称 - 对应 C++ TcpSrc::nodename()
         self._nodename = "tcpsrc"
         
+        # 对应 C++ #ifdef PACKET_SCATTER
+        self._crt_path = 0              # uint16_t _crt_path
+        self.DUPACK_TH = 3              # uint16_t DUPACK_TH
+        self._paths = None              # vector<const Route*>* _paths
+        
     @staticmethod
     def time_from_ms(ms: int) -> int:
         """毫秒转换为皮秒 - 对应 C++ timeFromMs()"""
-        return ms * 1_000_000_000_000
+        return ms * 1_000_000_000
         
     @staticmethod
     def time_from_sec(sec: float) -> int:
@@ -212,7 +222,6 @@ class TcpSrc(PacketSink, EventSource):
             flow_size_in_bytes: 流大小（字节）
         """
         self._flow_size = flow_size_in_bytes + self._mss
-        print(f"Setting flow size to {self._flow_size}")
     
     def getFlowId(self) -> int:
         """获取流ID - 对应 C++ TcpSrc::getFlowId()"""
@@ -227,7 +236,7 @@ class TcpSrc(PacketSink, EventSource):
         """
         return self._ssthresh if self._in_fast_recovery else self._cwnd
     
-    def receive_packet(self, pkt) -> None:
+    def receivePacket(self, pkt) -> None:
         """
         接收数据包（ACK等）- 对应 C++ TcpSrc::receivePacket()
         
@@ -241,7 +250,7 @@ class TcpSrc(PacketSink, EventSource):
         seqno = pkt.ackno()
         
         # 记录流量日志
-        pkt.flow().log_traffic(pkt, self, "PKT_RCVDESTROY")
+        pkt.flow().logTraffic(pkt, self, TrafficLogger.TrafficEvent.PKT_RCVDESTROY)
         
         # 释放数据包
         pkt.free()
@@ -251,10 +260,9 @@ class TcpSrc(PacketSink, EventSource):
         
         # 处理SYN/ACK
         if seqno == 1:
-            print(f"✅ TcpSrc {self.nodename()} received SYN/ACK, connection established!")
             self._established = True
         elif seqno > 1 and not self._established:
-            print(f"Should be _established {seqno}")
+            pass  # Should be _established
         
         # 计算RTT - 对应 C++ TcpSrc::receivePacket() RTT计算
         m = self._eventlist.now() - ts
@@ -279,7 +287,7 @@ class TcpSrc(PacketSink, EventSource):
         
         # 检查流是否完成
         if seqno >= self._flow_size:
-            print(f"Flow {self.nodename()} finished at {self._eventlist.now() // 1000000000000}ms")
+            pass  # Flow finished
         
         # 处理新的ACK
         if seqno > self._last_acked:
@@ -364,13 +372,14 @@ class TcpSrc(PacketSink, EventSource):
         # 重复ACK计数
         self._dupacks += 1
         
-        if self._dupacks != 3:
+        # 对应 C++ if (_dupacks!=DUPACK_TH)
+        if self._dupacks != self.DUPACK_TH:
             if self._logger:
                 self._logger.logTcp(self, "TCP_RCV_DUP")
             self.send_packets()
             return
         
-        # 三个重复ACK - 开始快速恢复
+        # DUPACK_TH个重复ACK - 开始快速恢复
         if self._last_acked < self._recoverq:
             if self._logger:
                 self._logger.logTcp(self, "TCP_RCV_3DUPNOFR")
@@ -455,13 +464,12 @@ class TcpSrc(PacketSink, EventSource):
         if not self._established:
             # 发送SYN包 - 对应C++ TcpPacket::new_syn_pkt
             if self._route and len(self._route) > 0:
-                p = TCPPacket.new_syn_pkt(self._flow, self._route, 1, 64)
+                p = TcpPacket.new_syn_pkt(self._flow, self._route, 1, 1)  # 对应 C++ new_syn_pkt(_flow, *_route, 1, 1)
                 if self._dst >= 0:
                     p.set_dst(self._dst)
                 p.set_ts(self._eventlist.now())
                 self._highest_sent = 1
                 
-                print("Sending SYN packet")
                 p.sendOn()  # 实际发送SYN包
                 
                 if self._RFC2988_RTO_timeout == TIME_INF:
@@ -484,12 +492,12 @@ class TcpSrc(PacketSink, EventSource):
             
             # 创建并发送实际的数据包 - 对应C++ TcpPacket::newpkt
             if self._route and len(self._route) > 0:
-                p = TCPPacket.newpkt(self._flow, self._route, self._highest_sent + 1, data_seq, self._mss)
+                p = TcpPacket.newpkt(self._flow, self._route, self._highest_sent + 1, data_seq, self._mss)
                 if self._dst >= 0:
                     p.set_dst(self._dst)
                 p.set_ts(self._eventlist.now())
                 
-                print(f"Sending data packet: seq={self._highest_sent + 1}")
+                pass  # 删除调试输出
                 p.sendOn()  # 实际发送数据包
                 
                 self._highest_sent += self._mss
@@ -504,16 +512,23 @@ class TcpSrc(PacketSink, EventSource):
         """
         重传数据包 - 对应 C++ TcpSrc::retransmit_packet()
         """
+        # 输出重传信息 - 对应 C++ cout << "At " << now...
+        now = self._eventlist.now()
+        print(f"At {now//1000000000} RTO {self._rto//1000000000} MDEV {self._mdev//1000000000} "
+              f"RTT {self._rtt//1000000000} SEQ {self._last_acked // self._mss} HSENT {self._highest_sent} "
+              f"CWND {self._cwnd//self._mss} FAST RECOVERY? {1 if self._in_fast_recovery else 0} "
+              f"Flow ID {self.nodename()}")
+        
         if not self._established:
             assert self._highest_sent == 1
             # 重传SYN包
             if self._route and len(self._route) > 0:
-                p = TCPPacket.new_syn_pkt(self._flow, self._route, 1, 64)
+                p = TcpPacket.new_syn_pkt(self._flow, self._route, 1, 1)  # 对应 C++ new_syn_pkt(_flow, *_route, 1, 1)
                 if self._dst >= 0:
                     p.set_dst(self._dst)
                 p.set_ts(self._eventlist.now())
                 
-                print("Resending SYN, waiting for SYN/ACK")
+                pass  # 删除调试输出
                 p.sendOn()
             return
         
@@ -521,12 +536,12 @@ class TcpSrc(PacketSink, EventSource):
         
         # 重传数据包
         if self._route and len(self._route) > 0:
-            p = TCPPacket.newpkt(self._flow, self._route, self._last_acked + 1, data_seq, self._mss)
+            p = TcpPacket.newpkt(self._flow, self._route, self._last_acked + 1, data_seq, self._mss)
             if self._dst >= 0:
                 p.set_dst(self._dst)
             p.set_ts(self._eventlist.now())
             
-            print(f"Retransmitting packet: seq={self._last_acked + 1}")
+            pass  # 删除调试输出
             p.sendOn()
             
             self._packets_sent += self._mss
@@ -548,11 +563,7 @@ class TcpSrc(PacketSink, EventSource):
         if self._highest_sent == 0:
             return
         
-        print(f"At {now/1000000000:.3f} RTO {self._rto/1000000000:.3f} "
-              f"MDEV {self._mdev/1000000000:.3f} RTT {self._rtt/1000000000:.3f} "
-              f"SEQ {self._last_acked // self._mss} HSENT {self._highest_sent} "
-              f"CWND {self._cwnd // self._mss} FAST RECOVERY? {self._in_fast_recovery} "
-              f"Flow ID {self.str()}")
+        pass  # 删除调试输出
         
         if not self._rtx_timeout_pending:
             self._rtx_timeout_pending = True
@@ -613,7 +624,49 @@ class TcpSrc(PacketSink, EventSource):
             if self._mSrc:
                 self._mSrc.window_changed()
         else:
+            # 对应 C++ else { startflow(); }
             self.startflow()
+    
+    def replace_route(self, newroute: Route) -> None:
+        """
+        替换路由 - 对应 C++ TcpSrc::replace_route()
+        
+        Args:
+            newroute: 新路由
+        """
+        if self._route:
+            if self._route == newroute:
+                return
+            self._old_route = self._route
+        self._route = newroute
+        self._last_packet_with_old_route = self._highest_sent
+    
+    def set_app_limit(self, pktps: int) -> None:
+        """
+        设置应用层速率限制 - 对应 C++ TcpSrc::set_app_limit()
+        
+        Args:
+            pktps: 每秒数据包数
+        """
+        if self._app_limited == 0 and pktps:
+            self._cwnd = self._mss
+        self._ssthresh = 0xffffffff
+        self._app_limited = pktps
+        self.send_packets()
+    
+    def set_paths(self, paths: List[Route]) -> None:
+        """
+        设置多路径 - 对应 C++ TcpSrc::set_paths() (ifdef PACKET_SCATTER)
+        
+        Args:
+            paths: 路由列表
+        """
+        self._paths = []
+        for route in paths:
+            t = Route(route)
+            t.push_back(self._sink)
+            self._paths.append(t)
+        self.DUPACK_TH = 3 + len(paths)
 
 
 class TcpSink(PacketSink, DataReceiver):
@@ -627,7 +680,7 @@ class TcpSink(PacketSink, DataReceiver):
         """
         初始化TCP接收端 - 对应 C++ TcpSink::TcpSink()
         """
-        PacketSink.__init__(self, "tcpsink")
+        PacketSink.__init__(self)
         DataReceiver.__init__(self, "TCPsink")
         
         # 对应 C++ TcpSink 成员变量
@@ -640,11 +693,14 @@ class TcpSink(PacketSink, DataReceiver):
         self._dst = -1            # int _dst
         self._crt_path = 0        # uint16_t _crt_path
         
-        # MPTCP相关 - 对应 C++ TcpSink MPTCP成员
+        # MPTCP相关 - 对应 C++ TcpSink MPTCP成圱
         self._mSink = None        # MultipathTcpSink* _mSink
         
         # 节点名称 - 对应 C++ TcpSink::nodename()
         self._nodename = "tcpsink"
+        
+        # 对应 C++ #ifdef PACKET_SCATTER
+        self._paths = None  # vector<const Route*>* _paths
     
     def nodename(self) -> str:
         """
@@ -711,41 +767,29 @@ class TcpSink(PacketSink, DataReceiver):
         """
         return self._src._drops if self._src else self._drops
     
-    def receive_packet(self, pkt) -> None:
+    def receivePacket(self, pkt) -> None:
         """
         接收数据包 - 对应 C++ TcpSink::receivePacket()
         
         Args:
             pkt: 接收到的数据包
         """
-        print(f"📥 TcpSink {self.nodename()} received packet of type {type(pkt).__name__}")
-        if not isinstance(pkt, TCPPacket):
-            print(f"❌ TcpSink {self.nodename()} rejecting non-TCP packet")
+        if not isinstance(pkt, TcpPacket):
             return
         
         seqno = pkt.seqno()
         ts = pkt.ts()
         marked = (pkt.flags() & 0x08) != 0  # ECN_CE标志
         
-        # 处理SYN包 - 对应C++版本的SYN处理
-        if pkt.is_syn():
-            print(f"✅ TcpSink {self.nodename()} received SYN packet with seqno={seqno}")
-            # SYN包的处理：确认收到SYN，准备发送SYN/ACK
-            if seqno == 1:  # 期望的SYN序列号
-                self._cumulative_ack = seqno
-            size = pkt.size()
-            pkt.free()
-            self._packets += size
-            print(f"🔄 TcpSink {self.nodename()} sending SYN/ACK for seqno={seqno}")
-            self.send_ack(ts, marked)  # 发送SYN/ACK
-            return
+        # C++中没有特殊处理SYN包，直接继续正常处理
         
         # MPTCP处理
         if self._mSink is not None:
             self._mSink.receive_packet(pkt)
         
         size = pkt.size()
-        # 简化日志处理
+        # 记录流量日志
+        pkt.flow().logTraffic(pkt, self, TrafficLogger.TrafficEvent.PKT_RCVDESTROY)
         pkt.free()
         
         self._packets += size
@@ -798,6 +842,13 @@ class TcpSink(PacketSink, DataReceiver):
         """
         rt = self._route
         
+        # 对应 C++ #ifdef PACKET_SCATTER
+        if self._paths:
+            # 对应 C++ #ifdef RANDOM_PATH
+            # self._crt_path = random.randint(0, len(self._paths)-1)
+            rt = self._paths[self._crt_path]
+            self._crt_path = (self._crt_path + 1) % len(self._paths)
+        
         data_ack_value = self._mSink.data_ack() if self._mSink else 0
         
         # 发送实际的ACK包 - 对应C++ TcpAck::newpkt
@@ -807,6 +858,7 @@ class TcpSink(PacketSink, DataReceiver):
             if self._dst >= 0:
                 ack.set_dst(self._dst)
             
+            ack.flow().logTraffic(ack, self, TrafficLogger.TrafficEvent.PKT_CREATESEND)
             ack.set_ts(ts)
             
             if marked:
@@ -814,8 +866,20 @@ class TcpSink(PacketSink, DataReceiver):
             else:
                 ack.set_flags(0)
             
-            print(f"📤 TcpSink {self.nodename()} sending ACK: {self._cumulative_ack}")
             ack.sendOn()  # 实际发送ACK包
+    
+    def set_paths(self, paths: List[Route]) -> None:
+        """
+        设置多路径 - 对应 C++ TcpSink::set_paths() (ifdef PACKET_SCATTER)
+        
+        Args:
+            paths: 路由列表
+        """
+        self._paths = []
+        for route in paths:
+            t = Route(route)
+            t.push_back(self._src)
+            self._paths.append(t)
 
 
 class TcpRtxTimerScanner(EventSource):
@@ -838,9 +902,9 @@ class TcpRtxTimerScanner(EventSource):
         self._tcps = []  # list<TcpSrc*> _tcps
         
         # 调度第一次扫描
-        eventlist.source_is_pending_rel(self, scanPeriod)
+        self._eventlist.source_is_pending_rel(self, scanPeriod)
     
-    def register_tcp(self, tcpsrc: TcpSrc) -> None:
+    def registerTcp(self, tcpsrc: TcpSrc) -> None:
         """
         注册TCP源 - 对应 C++ TcpRtxTimerScanner::registerTcp()
         

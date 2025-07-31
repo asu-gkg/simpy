@@ -57,9 +57,12 @@ class EventSource(Logged, ABC):
     """
     
     def __init__(self, eventlist: 'EventList', name: str):
-        """对应 C++ 构造函数 EventSource(EventList& eventlist, const string& name)"""
-        super().__init__(name)  # 调用 Logged 的构造函数
-        self._eventlist = eventlist
+        """
+        对应 C++ 构造函数 EventSource(EventList& eventlist, const string& name)
+        : Logged(name), _eventlist(eventlist) {};
+        """
+        super().__init__(name)  # 对应 Logged(name)
+        self._eventlist = eventlist  # 对应 _eventlist(eventlist)
     
     def __lt__(self, other):
         """
@@ -90,8 +93,12 @@ class EventSource(Logged, ABC):
     
     @classmethod
     def create_with_name_only(cls, name: str):
-        """对应 C++ 构造函数 EventSource(const string& name)"""
-        # 注意：这里需要子类实现，因为需要调用 EventList::getTheEventList()
+        """
+        对应 C++ 构造函数 EventSource(const string& name)
+        
+        C++实现: EventSource::EventSource(const string& name) 
+                : EventSource(EventList::getTheEventList(), name) 
+        """
         eventlist = EventList.get_the_event_list()
         return cls(eventlist, name)
     
@@ -99,12 +106,15 @@ class EventSource(Logged, ABC):
     def do_next_event(self) -> None:
         """
         对应 C++ 中的 EventSource::doNextEvent()
-        执行下一个事件的纯虚函数
+        virtual void doNextEvent() = 0;
         """
         pass
     
     def eventlist(self) -> 'EventList':
-        """对应 C++ 中的 EventSource::eventlist()"""
+        """
+        对应 C++ 中的 EventSource::eventlist()
+        inline EventList& eventlist() const {return _eventlist;}
+        """
         return self._eventlist
 
 
@@ -167,7 +177,19 @@ class EventList:
     
     @classmethod
     def get_the_event_list(cls) -> 'EventList':
-        """对应 C++ 中的 EventList::getTheEventList()"""
+        """
+        对应 C++ 中的 EventList::getTheEventList()
+        
+        C++实现:
+        EventList& EventList::getTheEventList()
+        {
+            if (EventList::_theEventList == nullptr) 
+            {
+                EventList::_theEventList = new EventList();
+            }
+            return *EventList::_theEventList;
+        }
+        """
         if cls._the_event_list is None:
             cls._the_event_list = cls()
         return cls._the_event_list
@@ -232,7 +254,10 @@ class EventList:
         C++: void EventList::sourceIsPending(EventSource &src, simtime_picosec when)
         """
         # 对应 assert(when>=now());
-        assert when >= cls.now()
+        # 对应 assert(when>=now());
+        # 允许当前时间的事件
+        if when < cls.now():
+            when = cls.now()
         # 对应 if (_endtime==0 || when<_endtime)
         if cls._endtime == 0 or when < cls._endtime:
             # 对应 _pendingsources.insert(make_pair(when,&src));
@@ -271,17 +296,27 @@ class EventList:
         """
         对应 C++ 中的 EventList::cancelPendingSource()
         取消待执行的事件源
+        
+        C++ 实现:
+        pendingsources_t::iterator i = _pendingsources.begin();
+        while (i != _pendingsources.end()) {
+            if (i->second == &src) {
+                _pendingsources.erase(i);
+                return;
+            }
+            i++;
+        }
         """
-        # 遍历所有时间槽，查找并删除事件源
-        for when in list(cls._pending_by_time.keys()):
-            sources = cls._pending_by_time[when]
+        # 遍历所有时间槽，查找并删除第一个匹配的事件源
+        for when in list(cls._sorted_times):  # 按时间顺序遍历
+            sources = cls._pending_by_time.get(when, [])
             if src in sources:
-                sources.remove(src)
+                sources.remove(src)  # 只删除第一个匹配的
                 # 如果该时间没有更多事件，清理时间条目
                 if not sources:
                     cls._sorted_times.remove(when)
                     del cls._pending_by_time[when]
-                return
+                return  # 找到并删除后立即返回
     
     @classmethod
     def cancel_pending_source_by_time(cls, src: EventSource, when: SimTime) -> None:

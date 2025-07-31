@@ -73,7 +73,7 @@ class Pipe(EventSource, PacketSink, Drawable):
         # stringstream ss; ss << "pipe(" << delay/1000000 << "us)"; _nodename= ss.str();
         self._nodename = f"pipe({delay // 1000000}us)"
     
-    def receive_packet(self, packet: Packet, virtual_queue=None) -> None:
+    def receivePacket(self, packet: Packet, virtual_queue=None) -> None:
         """
         对应 C++ 中的 void Pipe::receivePacket(Packet& pkt)
         接收数据包并安排其传输
@@ -84,7 +84,7 @@ class Pipe(EventSource, PacketSink, Drawable):
         
         if self._count == 0:
             # 没有数据包在途中；需要通知事件列表有待处理事件
-            self.eventlist().source_is_pending_rel(self, self._delay)
+            self._eventlist.source_is_pending_rel(self, self._delay)
         
         self._count += 1
         
@@ -93,7 +93,7 @@ class Pipe(EventSource, PacketSink, Drawable):
             self._resize_buffer()
         
         # 添加数据包到环形缓冲区
-        self._inflight_v[self._next_insert].time = self.eventlist().now() + self._delay
+        self._inflight_v[self._next_insert].time = self._eventlist.now() + self._delay
         self._inflight_v[self._next_insert].pkt = packet
         self._next_insert = (self._next_insert + 1) % self._size
     
@@ -111,19 +111,25 @@ class Pipe(EventSource, PacketSink, Drawable):
         self._count -= 1
         
         # 对应 C++ 中的 pkt->flow().logTraffic(*pkt, *this,TrafficLogger::PKT_DEPART)
-        if hasattr(pkt, 'flow') and pkt.flow() and pkt.flow().log_me():
-            pkt.flow().log_traffic(pkt, self, TrafficLogger.TrafficEvent.PKT_DEPART)
+        pkt.flow().logTraffic(pkt, self, TrafficLogger.TrafficEvent.PKT_DEPART)
+        
+        # 调试信息
+        if hasattr(pkt, '_nexthop') and hasattr(pkt, '_route') and pkt._route:
+            if pkt._nexthop >= pkt._route.size():
+                # 包已经到达目的地，不应该再发送
+                # 这种情况可能发生在包被重用时
+                return
         
         # 对应 C++ 中的 pkt->sendOn()
-        print(f"🚀 Pipe forwarding packet")
-        pkt.send_on()
+        pkt.sendOn()
         
         # 对应 C++ 中的条件检查和事件调度
         if self._count > 0:
             # 对应 C++ 中的 simtime_picosec nexteventtime = _inflight_v[_next_pop].time
             next_event_time = self._inflight_v[self._next_pop].time
             # 对应 C++ 中的 _eventlist.sourceIsPending(*this, nexteventtime)
-            self.eventlist().source_is_pending(self, next_event_time)
+            # 对应 C++ 中的 _eventlist.sourceIsPending(*this, nexteventtime)
+            self._eventlist.source_is_pending(self, next_event_time)
     
     def _resize_buffer(self) -> None:
         """

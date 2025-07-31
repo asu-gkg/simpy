@@ -15,39 +15,14 @@ C++对应关系:
 """
 
 from typing import Optional, List
-from .base_packet import BasePacket
-from ..core.network import PacketFlow, Route, Packet
+from ..core.network import PacketFlow, Route, Packet, PacketDB, PacketType, PacketPriority
 import sys
 
 # 对应 C++ 中的类型定义
 seq_t = int  # typedef uint64_t seq_t
 
 
-class PacketDB:
-    """
-    数据包数据库 - 对应 C++ PacketDB<T> 模板类
-    
-    简化的包复用机制
-    """
-    
-    def __init__(self, packet_class):
-        self._packet_class = packet_class
-        self._free_packets = []
-    
-    def allocPacket(self):
-        """分配数据包 - 对应 C++ PacketDB::allocPacket()"""
-        if self._free_packets:
-            return self._free_packets.pop()
-        else:
-            return self._packet_class()
-    
-    def freePacket(self, packet):
-        """释放数据包 - 对应 C++ PacketDB::freePacket()"""
-        # 注意：C++版本不重置包状态，只是放回空闲列表
-        self._free_packets.append(packet)
-
-
-class TCPPacket(Packet):
+class TcpPacket(Packet):
     """
     TCP数据包类 - 对应 tcppacket.h/cpp 中的 TcpPacket 类
     
@@ -68,8 +43,8 @@ class TCPPacket(Packet):
         self._ts = 0           # simtime_picosec _ts
         
         # 初始化包数据库（如果还没有初始化）
-        if TCPPacket._packetdb is None:
-            TCPPacket._packetdb = PacketDB(TCPPacket)
+        if TcpPacket._packetdb is None:
+            TcpPacket._packetdb = PacketDB()
     
     # 注意：C++版本没有_reset方法，我们也不应该有
     
@@ -89,18 +64,15 @@ class TCPPacket(Packet):
             TCP数据包实例
         """
         # 确保PacketDB已初始化
-        if TCPPacket._packetdb is None:
-            TCPPacket._packetdb = PacketDB(TCPPacket)
+        if TcpPacket._packetdb is None:
+            TcpPacket._packetdb = PacketDB()
         
-        p = TCPPacket._packetdb.allocPacket()
+        p = TcpPacket._packetdb.allocPacket(TcpPacket)
         p.set_route(flow, route, size, seqno + size - 1)  # TCP序列号是包的第一个字节，用最后一个字节标识包
-        p._type = "TCP"
+        p._type = PacketType.TCP
         p._seqno = seqno
         p._data_seqno = dataseqno
         p._syn = False
-        # 确保路由信息正确设置
-        p._route = route
-        p._nexthop = 0
         return p
     
     @staticmethod
@@ -117,7 +89,7 @@ class TCPPacket(Packet):
         Returns:
             TCP数据包实例
         """
-        return TCPPacket.newpkt(flow, route, seqno, 0, size)
+        return TcpPacket.newpkt(flow, route, seqno, 0, size)
     
     @staticmethod
     def new_syn_pkt(flow: PacketFlow, route: Route, seqno: seq_t, size: int):
@@ -133,7 +105,7 @@ class TCPPacket(Packet):
         Returns:
             SYN数据包实例
         """
-        p = TCPPacket.newpkt(flow, route, seqno, 0, size)
+        p = TcpPacket.newpkt(flow, route, seqno, 0, size)
         p._syn = True
         # 确保路由信息正确设置（已经在newpkt中设置了）
         return p
@@ -142,7 +114,7 @@ class TCPPacket(Packet):
         """
         释放数据包 - 对应 C++ TcpPacket::free()
         """
-        TCPPacket._packetdb.freePacket(self)
+        TcpPacket._packetdb.freePacket(self)
     
     def seqno(self) -> seq_t:
         """
@@ -180,31 +152,18 @@ class TCPPacket(Packet):
         """
         self._ts = ts
     
-    def priority(self) -> str:
+    def priority(self) -> PacketPriority:
         """
         获取数据包优先级 - 对应 C++ TcpPacket::priority()
         
         Returns:
             优先级（低优先级）
         """
-        return "PRIO_LO"
+        return PacketPriority.PRIO_LO
     
     def is_syn(self) -> bool:
         """判断是否为SYN包"""
         return self._syn
-    
-    def sendOn(self) -> None:
-        """发送数据包 - 对应 C++ TcpPacket::sendOn()"""
-        # 调用父类的正确路由发送机制
-        self.send_on()
-    
-    def flags(self) -> int:
-        """获取TCP标志位 - 简化实现"""
-        return 0x02 if self._syn else 0
-    
-    def size(self) -> int:
-        """获取包大小"""
-        return getattr(self, '_size', 1500)
 
 
 class TcpAck(Packet):
@@ -232,7 +191,7 @@ class TcpAck(Packet):
         
         # 初始化包数据库（如果还没有初始化）
         if TcpAck._packetdb is None:
-            TcpAck._packetdb = PacketDB(TcpAck)
+            TcpAck._packetdb = PacketDB()
     
     # 注意：C++版本没有_reset方法，我们也不应该有
     
@@ -253,17 +212,14 @@ class TcpAck(Packet):
         """
         # 确保PacketDB已初始化
         if TcpAck._packetdb is None:
-            TcpAck._packetdb = PacketDB(TcpAck)
+            TcpAck._packetdb = PacketDB()
         
-        p = TcpAck._packetdb.allocPacket()
+        p = TcpAck._packetdb.allocPacket(TcpAck)
         p.set_route(flow, route, TcpAck.ACKSIZE, ackno)
-        p._type = "TCPACK"
+        p._type = PacketType.TCPACK
         p._seqno = seqno
         p._ackno = ackno
         p._data_ackno = dackno
-        # 确保路由信息正确设置
-        p._route = route
-        p._nexthop = 0
         return p
     
     @staticmethod
@@ -333,36 +289,12 @@ class TcpAck(Packet):
         """
         self._ts = ts
     
-    def priority(self) -> str:
+    def priority(self) -> PacketPriority:
         """
         获取数据包优先级 - 对应 C++ TcpAck::priority()
         
         Returns:
             优先级（高优先级）
         """
-        return "PRIO_HI"
+        return PacketPriority.PRIO_HI
     
-    def flow(self):
-        """获取数据包流"""
-        return getattr(self, '_flow', None)
-    
-    def sendOn(self) -> None:
-        """发送确认包 - 对应 C++ TcpAck::sendOn()"""
-        # 调用父类的正确路由发送机制
-        self.send_on()
-    
-    def set_dst(self, dst: int) -> None:
-        """设置目标地址"""
-        self._dst = dst
-    
-    def set_flags(self, flags: int) -> None:
-        """设置标志位"""
-        self._flags = flags
-    
-    def flags(self) -> int:
-        """获取标志位"""
-        return getattr(self, '_flags', 0)
-
-
-# 为了兼容性，提供一个别名
-TCPPacket = TCPPacket

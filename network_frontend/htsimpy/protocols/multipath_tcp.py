@@ -173,7 +173,7 @@ class MultipathTcpSrc(PacketSink, EventSource):
             rwnd: 接收窗口大小 (int rwnd = 1000)
         """
         EventSource.__init__(self, eventlist, "MTCP")
-        PacketSink.__init__(self, "MTCP")
+        PacketSink.__init__(self)
         
         # 对应 C++ MultipathTcpSrc 成员变量初始化
         self._cc_type = cc_type  # char _cc_type
@@ -969,7 +969,7 @@ class MultipathTcpSink(PacketSink, EventSource):
         }
         """
         EventSource.__init__(self, eventlist, "MTCPSink")
-        PacketSink.__init__(self, "MTCPSink")
+        PacketSink.__init__(self)
         
         # 对应 C++ MultipathTcpSink 成员变量初始化
         self._cumulative_ack = 0  # TcpAck::seq_t _cumulative_ack

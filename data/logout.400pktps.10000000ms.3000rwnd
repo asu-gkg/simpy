@@ -1,0 +1,25 @@
+Queue1
+Queue2
+PQueue2
+PQueue3
+PQueue4
+queue_back
+MPTCPFlow
+mptcp_sink
+18
+TCPsink
+21
+TCPsink
+10000000000000 14 0 0 0.0 0.0 0.0
+20000000000000 14 0 0 0.0 0.0 0.0
+30000000000000 14 0 0 0.0 0.0 0.0
+40000000000000 14 0 0 0.0 0.0 0.0
+50000000000000 14 0 0 0.0 0.0 0.0
+# pktsize=1500 bytes
+# bottleneckrate1=166 pkt/sec
+# bottleneckrate2=400 pkt/sec
+# buffer1=298803 pkt
+# rtt=150.0
+# rtt=10000.0
+# numflows=2
+# targetwnd=30

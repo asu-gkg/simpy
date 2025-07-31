@@ -25,12 +25,15 @@ C++对应关系:
 """
 
 from abc import ABC, abstractmethod
-from typing import Optional
+from typing import Optional, List
 from collections import deque
-from ..core.network import PacketSink
-from ..core.eventlist import EventSource
+from ..core.circular_buffer import CircularBuffer
+from ..core.network import PacketSink, Packet
+from ..core.eventlist import EventSource, EventList
 from ..core.logger import Logged, QueueLogger
 from ..core.drawable import Drawable
+from ..core.logger.traffic import TrafficLogger
+from ..core.logger.queue import QueueLogger
 
 
 class BaseQueue(EventSource, PacketSink, Drawable, ABC):
@@ -53,8 +56,9 @@ class BaseQueue(EventSource, PacketSink, Drawable, ABC):
             eventlist: 事件调度器 - 对应 C++ 的 EventList& eventlist
             logger: 队列日志记录器 - 对应 C++ 的 QueueLogger* logger
         """
+        # 对应 C++ : EventSource(eventlist, "Queue"), _logger(logger), _bitrate(bitrate), _switch(NULL)
         EventSource.__init__(self, eventlist, "Queue")
-        PacketSink.__init__(self, "Queue")
+        PacketSink.__init__(self)  # C++中PacketSink没有参数
         Drawable.__init__(self)
         
         # 对应 C++ BaseQueue 成员
@@ -67,7 +71,7 @@ class BaseQueue(EventSource, PacketSink, Drawable, ABC):
         self._ps_per_byte = int((10**12 * 8) / bitrate)
         
         # 对应 C++ BaseQueue 统计成员初始化
-        self._window = 30_000_000_000_000    # simtime_picosec _window = timeFromUs(30.0)
+        self._window = 30_000_000            # simtime_picosec _window = timeFromUs(30.0) - 30微秒
         self._busy = 0                       # simtime_picosec _busy = 0
         self._idle = 0                       # simtime_picosec _idle
         
@@ -78,8 +82,8 @@ class BaseQueue(EventSource, PacketSink, Drawable, ABC):
         self._last_utilization = 0          # uint8_t _last_utilization = 0
         
         # 利用率统计 - 对应 C++ BaseQueue 成员
-        self._busystart = deque()            # CircularBuffer<simtime_picosec> _busystart
-        self._busyend = deque()              # CircularBuffer<simtime_picosec> _busyend
+        self._busystart = CircularBuffer()   # CircularBuffer<simtime_picosec> _busystart
+        self._busyend = CircularBuffer()     # CircularBuffer<simtime_picosec> _busyend
         
         # 节点名称（子类设置）
         self._nodename = ""
@@ -135,7 +139,7 @@ class BaseQueue(EventSource, PacketSink, Drawable, ABC):
     
     # 通用工具方法 - 对应 C++ BaseQueue 内联函数
     
-    def drainTime(self, packet) -> int:
+    def drain_time(self, packet) -> int:
         """
         计算数据包传输时间 - 对应 C++ BaseQueue::drainTime()
         
@@ -147,7 +151,7 @@ class BaseQueue(EventSource, PacketSink, Drawable, ABC):
         """
         return packet.size() * self._ps_per_byte
     
-    def serviceCapacity(self, t: int) -> int:
+    def service_capacity(self, t: int) -> int:
         """
         计算在给定时间内能处理的字节数 - 对应 C++ BaseQueue::serviceCapacity()
         
@@ -180,8 +184,8 @@ class BaseQueue(EventSource, PacketSink, Drawable, ABC):
         current_time = self._eventlist.now()
         start_time = current_time - duration
         
-        self._busystart.append(start_time)
-        self._busyend.append(current_time)
+        self._busystart.push(start_time)
+        self._busyend.push(current_time)
         self._busy += duration
         
         # 对应 C++ 的清理逻辑
@@ -189,15 +193,21 @@ class BaseQueue(EventSource, PacketSink, Drawable, ABC):
     
     def _cleanup_old_busy_records(self, current_time: int) -> None:
         """清理超出测量窗口的忙碌记录"""
-        if not self._busyend:
+        if self._busyend.empty():
             return
             
         window_start = current_time - self._window
+        y = self._busyend.back()
         
-        while self._busyend and self._busyend[0] < window_start:
-            start_time = self._busystart.popleft()
-            end_time = self._busyend.popleft()
-            self._busy -= (end_time - start_time)
+        while y < window_start:
+            x = self._busystart.pop()
+            self._busyend.pop()
+            self._busy -= (y - x)
+            
+            if not self._busyend.empty():
+                y = self._busyend.back()
+            else:
+                break
     
     def average_utilization(self) -> int:
         """
@@ -206,27 +216,23 @@ class BaseQueue(EventSource, PacketSink, Drawable, ABC):
         Returns:
             利用率百分比 (0-100)
         """
-        if not self._busystart:
+        if self._busystart.empty():
             return 0
         
-        current_time = self._eventlist.now()
+        y = self._busyend.back()
+        b = self._eventlist.now()
         
-        # 清理过期记录
-        if self._busyend:
-            window_start = current_time - self._window
+        while y < b - self._window:
+            x = self._busystart.pop()
+            self._busyend.pop()
             
-            while (self._busyend and 
-                   self._busyend[0] < window_start):
-                start_time = self._busystart.popleft()
-                end_time = self._busyend.popleft()
-                self._busy -= (end_time - start_time)
-                
-                if self._busy < 0:
-                    self._busy = 0
-                    break
-                    
-                if not self._busyend:
-                    break
+            self._busy -= (y - x)
+            assert self._busy >= 0
+            
+            if not self._busyend.empty():
+                y = self._busyend.back()
+            else:
+                break
         
         # 对应 C++ 的 return (_busy*100/_window);
         return (self._busy * 100) // self._window
@@ -296,3 +302,171 @@ class BaseQueue(EventSource, PacketSink, Drawable, ABC):
     def __repr__(self) -> str:
         """详细字符串表示"""
         return f"BaseQueue(nodename={self._nodename}, bitrate={self._bitrate})"
+
+
+class Queue(BaseQueue):
+    """
+    标准FIFO队列 - 对应 queue.h/cpp 中的 Queue 类
+    
+    C++定义:
+    class Queue : public BaseQueue {
+    public:
+        Queue(linkspeed_bps bitrate, mem_b maxsize, EventList &eventlist, 
+              QueueLogger* logger);
+        virtual void receivePacket(Packet& pkt);
+        void do_next_event();
+        mem_b _maxsize; 
+        virtual mem_b queuesize() const;
+        virtual mem_b maxsize() const {return _maxsize;}
+    };
+    """
+    
+    def __init__(self, bitrate: int, maxsize: int, eventlist: EventList, logger: Optional['QueueLogger'] = None):
+        """
+        对应 C++ 构造函数:
+        Queue::Queue(linkspeed_bps bitrate, mem_b maxsize, EventList& eventlist, 
+                     QueueLogger* logger)
+            : BaseQueue(bitrate, eventlist, logger), 
+              _maxsize(maxsize), _num_drops(0)
+        {
+            _queuesize = 0;
+            stringstream ss;
+            ss << "queue(" << bitrate/1000000 << "Mb/s," << maxsize << "bytes)";
+            _nodename = ss.str();
+        }
+        """
+        super().__init__(bitrate, eventlist, logger)
+        
+        # 对应 C++ 成员变量
+        self._maxsize = maxsize     # mem_b _maxsize
+        self._num_drops = 0         # int _num_drops  
+        self._queuesize = 0         # mem_b _queuesize
+        
+        # 队列存储 - 对应 C++ CircularBuffer<Packet*> _enqueued
+        self._enqueued = CircularBuffer()  # CircularBuffer<Packet*> _enqueued
+        
+        # 设置节点名称
+        self._nodename = f"queue({bitrate//1000000}Mb/s,{maxsize}bytes)"
+    
+    def receivePacket(self, pkt: Packet) -> None:
+        """
+        对应 C++ Queue::receivePacket()
+        接收数据包
+        """
+        # 对应 C++ pkt.flow().logTraffic(pkt,*this,TrafficLogger::PKT_ARRIVE);
+        if pkt.flow() and pkt.flow().log_me():
+            pkt.flow().logTraffic(pkt, self, TrafficLogger.TrafficEvent.PKT_ARRIVE)
+        
+        # 如果当前队列大小 + 数据包大小 > 最大容量，丢弃数据包
+        if self._queuesize + pkt.size() > self._maxsize:
+            # 对应 C++ if (_logger) _logger->logQueue(*this, QueueLogger::PKT_DROP, pkt);
+            if self._logger:
+                self._logger.logQueue(self, QueueLogger.QueueEvent.PKT_DROP, pkt)
+            
+            # 对应 C++ pkt.flow().logTraffic(pkt,*this,TrafficLogger::PKT_DROP);
+            if pkt.flow() and pkt.flow().log_me():
+                pkt.flow().logTraffic(pkt, self, TrafficLogger.TrafficEvent.PKT_DROP)
+            
+            pkt.free()
+            self._num_drops += 1
+            return
+        
+        # 对应 C++ pkt.flow().logTraffic(pkt,*this,TrafficLogger::PKT_ENQUEUE);
+        if pkt.flow() and pkt.flow().log_me():
+            pkt.flow().logTraffic(pkt, self, TrafficLogger.TrafficEvent.PKT_ENQUEUE)
+        
+        # 将数据包加入队列
+        # 对应 C++ _enqueued.push(pkt_p);
+        self._enqueued.push(pkt)
+        self._queuesize += pkt.size()
+        
+        # 对应 C++ if (_logger) _logger->logQueue(*this, QueueLogger::PKT_ENQUEUE, pkt);
+        if self._logger:
+            self._logger.logQueue(self, QueueLogger.QueueEvent.PKT_ENQUEUE, pkt)
+        
+        # 如果队列之前是空的，开始服务
+        if self._enqueued.size() == 1:
+            # 对应 C++ beginService();
+            self.beginService()
+    
+    def beginService(self) -> None:
+        """
+        对应 C++ Queue::beginService()
+        开始服务下一个数据包
+        """
+        # 对应 C++ assert(!_enqueued.empty());
+        assert not self._enqueued.empty()
+        
+        # 对应 C++ eventlist().sourceIsPendingRel(*this, drainTime(_enqueued.back()));
+        # 注意：CircularBuffer的back()返回下一个要pop的元素（最老的）
+        pkt = self._enqueued.back()
+        self.eventlist().source_is_pending_rel(self, self.drain_time(pkt))
+    
+    def do_next_event(self) -> None:
+        """
+        对应 C++ Queue::doNextEvent()
+        处理下一个事件（发送数据包）
+        """
+        self.completeService()
+    
+    def completeService(self) -> None:
+        """
+        对应 C++ Queue::completeService()
+        完成服务
+        """
+        # 对应 C++ assert(!_enqueued.empty());
+        assert not self._enqueued.empty()
+        
+        # 取出队首数据包
+        # 对应 C++ Packet* pkt = _enqueued.pop();
+        pkt = self._enqueued.pop()
+        self._queuesize -= pkt.size()
+        
+        # 对应 C++ pkt->flow().logTraffic(*pkt, *this, TrafficLogger::PKT_DEPART);
+        if pkt.flow() and pkt.flow().log_me():
+            pkt.flow().logTraffic(pkt, self, TrafficLogger.TrafficEvent.PKT_DEPART)
+        
+        # 对应 C++ if (_logger) _logger->logQueue(*this, QueueLogger::PKT_SERVICE, *pkt);
+        if self._logger:
+            self._logger.logQueue(self, QueueLogger.QueueEvent.PKT_SERVICE, pkt)
+        
+        # 对应 C++ log_packet_send(drainTime(pkt));
+        self.log_packet_send(self.drain_time(pkt))
+        
+        # 发送数据包
+        # 对应 C++ pkt->sendOn();
+        pkt.sendOn()
+        
+        # 如果队列还有数据包，继续服务
+        if not self._enqueued.empty():
+            self.beginService()
+    
+    def queuesize(self) -> int:
+        """
+        对应 C++ virtual mem_b queuesize() const
+        返回当前队列大小
+        """
+        return self._queuesize
+    
+    def maxsize(self) -> int:
+        """
+        对应 C++ virtual mem_b maxsize() const {return _maxsize;}
+        返回队列最大容量
+        """
+        return self._maxsize
+    
+    def serviceTime(self) -> int:
+        """
+        对应 C++ simtime_picosec Queue::serviceTime() {
+            return _queuesize * _ps_per_byte;
+        }
+        """
+        return self._queuesize * self._ps_per_byte
+    
+    def num_drops(self) -> int:
+        """对应 C++ int num_drops() const {return _num_drops;}"""
+        return self._num_drops
+    
+    def reset_drops(self) -> None:
+        """对应 C++ void reset_drops() {_num_drops = 0;}"""
+        self._num_drops = 0

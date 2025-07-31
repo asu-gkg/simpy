@@ -8,7 +8,19 @@
       "Bash(uv pip install:*)",
       "Bash(uv venv:*)",
       "Bash(source:*)",
-      "Bash(uv pip search:*)"
+      "Bash(uv pip search:*)",
+      "Bash(python -m pytest network_frontend/htsimpy/tests/test_eventlist.py -v)",
+      "Bash(sed:*)",
+      "Bash(timeout 10 uv run python network_frontend/htsimpy/examples/05_mptcp_example/main.py)",
+      "Bash(timeout 5 uv run:*)",
+      "Bash(timeout 3 uv run:*)",
+      "Bash(timeout 30 uv run:*)",
+      "Bash(make:*)",
+      "Bash(./htsim_tcp:*)",
+      "Bash(./main:*)",
+      "Bash(chmod:*)",
+      "Bash(grep:*)",
+      "Bash(rm:*)"
     ],
     "deny": []
   }
