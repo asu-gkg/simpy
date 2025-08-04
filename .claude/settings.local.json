@@ -20,7 +20,8 @@
       "Bash(./main:*)",
       "Bash(chmod:*)",
       "Bash(grep:*)",
-      "Bash(rm:*)"
+      "Bash(rm:*)",
+      "Bash(touch:*)"
     ],
     "deny": []
   }

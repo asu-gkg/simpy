@@ -93,6 +93,7 @@ class Logfile:
         对应 C++ 的 writeRecord()
         写入日志记录，自动添加时间戳
         """
+        
         if self._file and self._eventlist:
             # 获取当前时间
             current_time = self._eventlist.now() if hasattr(self._eventlist, 'now') else 0

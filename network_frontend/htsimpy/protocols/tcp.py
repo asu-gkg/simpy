@@ -488,7 +488,14 @@ class TcpSrc(PacketSink, EventSource):
         while (self._last_acked + c >= self._highest_sent + self._mss and 
                self._highest_sent <= self._flow_size + 1):
             
-            data_seq = 0  # 简化版本暂不处理 MODEL_RECEIVE_WINDOW
+            # MPTCP数据序列控制 - 对应 C++ MODEL_RECEIVE_WINDOW部分
+            data_seq = 0
+            if self._mSrc:
+                # 对应 C++ if (_mSrc && !_mSrc->getDataSeq(&data_seq,this)) break;
+                success, seq = self._mSrc.getDataSeq(self)
+                if not success:
+                    break  # 没有更多数据可发送
+                data_seq = seq
             
             # 创建并发送实际的数据包 - 对应C++ TcpPacket::newpkt
             if self._route and len(self._route) > 0:
@@ -650,7 +657,7 @@ class TcpSrc(PacketSink, EventSource):
         """
         if self._app_limited == 0 and pktps:
             self._cwnd = self._mss
-        self._ssthresh = 0xffffffff
+        self._ssthresh = 100 * self._mss
         self._app_limited = pktps
         self.send_packets()
     

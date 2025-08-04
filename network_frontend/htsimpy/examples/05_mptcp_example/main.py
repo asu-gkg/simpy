@@ -205,6 +205,7 @@ class MptcpSimulation:
         
         # 设置数据包大小 - 对应 C++ Packet::data_packet_size()
         self.pktsize = Packet.data_packet_size()
+        print(f'pkt size: {self.pktsize}')
         
         # 创建日志文件 - 对应 C++ Logfile
         self._setup_logfile()
@@ -230,14 +231,17 @@ class MptcpSimulation:
         # 路径1参数 - 对应 C++ SERVICE1, RTT1 等
         self.service1 = speed_from_pktps(166)  # 3G网络
         self.rtt1 = time_from_ms(150)
-        self.buffer1 = mem_from_pkt(3 + int(self.rtt1 / 1e12 * self.service1 / 8 / 1500 * 12))
+        # C++: BUFFER1=memFromPkt(RANDOM_BUFFER+timeAsSec(RTT1)*speedAsPktps(SERVICE1)*12)
+        # timeAsSec: 皮秒转秒, speedAsPktps: bits/sec -> pkts/sec
+        self.buffer1 = mem_from_pkt(RANDOM_BUFFER + int(self.rtt1 / 1e12 * speedAsPktps(self.service1) * 12))
         
         # 路径2参数 - 对应 C++ SERVICE2, RTT2 等
         self.service2 = speed_from_pktps(self.args.rate2)  # WiFi网络
         self.rtt2 = time_from_ms(self.args.rtt2)
-        bufsize = int(self.rtt2 / 1e12 * self.service2 / 8 / 1500 * 4)
+        # C++: int bufsize = timeAsSec(RTT2)*speedAsPktps(SERVICE2)*4;
+        bufsize = int(self.rtt2 / 1e12 * speedAsPktps(self.service2) * 4)
         bufsize = max(bufsize, 10)
-        self.buffer2 = mem_from_pkt(3 + bufsize)
+        self.buffer2 = mem_from_pkt(RANDOM_BUFFER + bufsize)  # C++: BUFFER2=memFromPkt(RANDOM_BUFFER+bufsize)
         
         # 接收窗口 - 对应 C++ rwnd 计算
         # C++: rwnd = 3 * timeAsSec(max(RTT1,RTT2)) * (speedAsPktps(SERVICE1)+speedAsPktps(SERVICE2));
@@ -537,21 +541,23 @@ class MptcpSimulation:
         """
         运行仿真 - 对应 C++ while (eventlist.doNextEvent())
         """
-        print(f"\n开始仿真（时长: {self.args.duration}秒）...")
+        print(f"\n开始仿真（时长: {self.args.duration}秒）, interval: {50/100.0}秒...")
         print("=" * 50)
         
         start_time = time.time()
         event_count = 0
         
         # 运行事件循环 - 对应 C++ main() 仿真循环
+        
+        # todo: 为什么？
         while self.eventlist.do_next_event():
             event_count += 1
-            
-            # 定期输出进度
-            if event_count % 10000 == 0:
+            if (event_count % 1000) == 0:
+                # The code is checking if the remainder of the `event_count` divided by 100 is equal to 0.
+                # This is typically used to perform an action every 100 events or iterations.
                 sim_time = self.eventlist.now() / 1e12  # 转换为秒
                 progress = sim_time / self.args.duration * 100
-                print(f"\r进度: {progress:.1f}% (仿真时间: {sim_time:.2f}s, 事件: {event_count})", end="")
+                print(f"进度: {progress:.1f}% (仿真时间: {sim_time:.2f}s, 事件: {event_count})")
         
         end_time = time.time()
         print(f"\n仿真完成！")

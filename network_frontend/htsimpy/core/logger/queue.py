@@ -36,6 +36,24 @@ class QueueLogger(Logger, ABC):
         PKT_BOUNCE = 4
         PKT_UNQUEUE = 5
         PKT_ARRIVE = 6
+        
+    def event_to_str(self, event: IntEnum) -> str:
+        if event == self.QueueEvent.PKT_ENQUEUE:
+            return "PKT_ENQUEUE"
+        elif event == self.QueueEvent.PKT_DROP:
+            return "PKT_DROP"
+        elif event == self.QueueEvent.PKT_SERVICE:
+            return "PKT_SERVICE"
+        elif event == self.QueueEvent.PKT_TRIM:
+            return "PKT_TRIM"
+        elif event == self.QueueEvent.PKT_BOUNCE:
+            return "PKT_BOUNCE"
+        elif event == self.QueueEvent.PKT_UNQUEUE:
+            return "PKT_UNQUEUE"
+        elif event == self.QueueEvent.PKT_ARRIVE:
+            return "PKT_ARRIVE"
+        else:
+            return "UNKNOWN"
     
     class QueueRecord(IntEnum):
         """对应 QueueLogger::QueueRecord 枚举"""
@@ -50,7 +68,7 @@ class QueueLogger(Logger, ABC):
     def logQueue(self, queue, ev: 'QueueEvent', pkt) -> None:
         """对应 C++ 虚函数 logQueue()"""
         pass
-
+    
 
 # ========================= Implementations from loggers.h =========================
 
@@ -63,6 +81,7 @@ class QueueLoggerSimple(QueueLogger):
             queue_size = queue.queuesize() if hasattr(queue, 'queuesize') else 0
             flow_id = pkt.flow().get_id() if hasattr(pkt, 'flow') and hasattr(pkt.flow(), 'get_id') else 0
             pkt_id = pkt.id() if hasattr(pkt, 'id') else 0
+
             self._logfile.writeRecord(Logger.EventType.QUEUE_EVENT,
                                     queue.get_id() if hasattr(queue, 'get_id') else 0,
                                     ev,
