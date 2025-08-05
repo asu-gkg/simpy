@@ -14,8 +14,8 @@ def parse_arguments():
     
     # 后端选择
     parser.add_argument("--backend", "-b", type=str, default="analytical",
-                       choices=["analytical", "ns3", "phynet"],
-                       help="Network backend: analytical, ns3, or phynet")
+                        choices=["analytical", "ns3", "phynet"],
+                        help="Network backend: analytical, ns3, or phynet")
     
     # 其他参数
     parser.add_argument("-w", "--workload", type=str, help="Workload file")

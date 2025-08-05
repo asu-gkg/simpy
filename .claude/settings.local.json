@@ -21,7 +21,8 @@
       "Bash(chmod:*)",
       "Bash(grep:*)",
       "Bash(rm:*)",
-      "Bash(touch:*)"
+      "Bash(touch:*)",
+      "Bash(timeout 10 uv run:*)"
     ],
     "deny": []
   }

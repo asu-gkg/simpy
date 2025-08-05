@@ -549,7 +549,6 @@ class MptcpSimulation:
         
         # 运行事件循环 - 对应 C++ main() 仿真循环
         
-        # todo: 为什么？
         while self.eventlist.do_next_event():
             event_count += 1
             if (event_count % 1000) == 0:

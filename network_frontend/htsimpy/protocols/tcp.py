@@ -32,7 +32,7 @@ if TYPE_CHECKING:
 # 常量定义 - 对应 C++ tcp.h 中的宏定义
 TIME_INF = 0
 KILL_THRESHOLD = 5
-MODEL_RECEIVE_WINDOW = False  # 对应 C++ #define MODEL_RECEIVE_WINDOW 1
+MODEL_RECEIVE_WINDOW = True  # 对应 C++ #define MODEL_RECEIVE_WINDOW 1
 
 
 class TcpSrc(PacketSink, EventSource):
@@ -751,6 +751,15 @@ class TcpSink(PacketSink, DataReceiver):
         self._route = route
         self._cumulative_ack = 0
         self._drops = 0
+    
+    def set_route(self, route: Route) -> None:
+        """
+        设置路由 - 用于设置返回路由
+        
+        Args:
+            route: 路由对象
+        """
+        self._route = route
     
     def cumulative_ack(self) -> int:
         """

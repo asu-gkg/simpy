@@ -91,7 +91,7 @@ def timeAsSec(picoseconds: int) -> float:
 
 # 条件编译标志 - 对应C++中的#define
 # 注意：C++原版中这些都是注释掉的（即默认关闭），为保持一致性，这里也设为False
-MODEL_RECEIVE_WINDOW = False     # 接收窗口建模 - 对应 //#define MODEL_RECEIVE_WINDOW 1
+MODEL_RECEIVE_WINDOW = True     # 接收窗口建模 - 对应 //#define MODEL_RECEIVE_WINDOW 1
 DYNAMIC_RIGHT_SIZING = False     # 动态右边界调整 - 对应 //#define DYNAMIC_RIGHT_SIZING 1
 STALL_SLOW_SUBFLOWS = False      # 慢子流阻塞 - 对应 //#define STALL_SLOW_SUBFLOWS 1
 REXMIT_ENABLED = False          # 重传功能 - 对应 //#define REXMIT_ENABLED 1
