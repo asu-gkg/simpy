@@ -23,7 +23,10 @@
       "Bash(rm:*)",
       "Bash(touch:*)",
       "Bash(timeout 10 uv run:*)",
-      "Bash(uv:*)"
+      "Bash(uv:*)",
+      "Bash(git add:*)",
+      "Bash(git pull:*)",
+      "Bash(git push:*)"
     ],
     "deny": []
   }

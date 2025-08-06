@@ -56,7 +56,7 @@ class LosslessInputQueue(Queue, VirtualQueue):
         # Packet::data_packet_size() * 2000
         from ..core.network import Packet
         bitrate = 1000000000  # 1 Gbps
-        maxsize = Packet.data_packet_size() * 2000 * 8  # Convert to bits
+        maxsize = Packet.data_packet_size() * 2000  # In bytes
         
         Queue.__init__(self, bitrate, maxsize, eventlist, None)
         VirtualQueue.__init__(self)
