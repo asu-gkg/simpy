@@ -353,10 +353,6 @@ class Queue(BaseQueue):
         对应 C++ Queue::receivePacket()
         接收数据包
         """
-        # 对应 C++ pkt.flow().logTraffic(pkt,*this,TrafficLogger::PKT_ARRIVE);
-        if pkt.flow() and pkt.flow().log_me():
-            pkt.flow().logTraffic(pkt, self, TrafficLogger.TrafficEvent.PKT_ARRIVE)
-        
         # 如果当前队列大小 + 数据包大小 > 最大容量，丢弃数据包
         if self._queuesize + pkt.size() > self._maxsize:
             # 对应 C++ if (_logger) _logger->logQueue(*this, QueueLogger::PKT_DROP, pkt);
@@ -371,9 +367,10 @@ class Queue(BaseQueue):
             self._num_drops += 1
             return
         
-        # 对应 C++ pkt.flow().logTraffic(pkt,*this,TrafficLogger::PKT_ENQUEUE);
+        # 对应 C++ pkt.flow().logTraffic(pkt,*this,TrafficLogger::PKT_ARRIVE);
+        # 只有在数据包不会被丢弃时才记录PKT_ARRIVE
         if pkt.flow() and pkt.flow().log_me():
-            pkt.flow().logTraffic(pkt, self, TrafficLogger.TrafficEvent.PKT_ENQUEUE)
+            pkt.flow().logTraffic(pkt, self, TrafficLogger.TrafficEvent.PKT_ARRIVE)
         
         # 将数据包加入队列
         # 对应 C++ _enqueued.push(pkt_p);
