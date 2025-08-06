@@ -13,8 +13,8 @@ from typing import Optional, List
 from enum import IntEnum
 
 
-class QueueState(IntEnum):
-    """Queue states for lossless operation - matches C++ enum"""
+class LosslessQueue(IntEnum):
+    """Queue states for lossless operation - matches C++ LosslessQueue enum"""
     PAUSED = 0
     READY = 1
     PAUSE_RECEIVED = 2
@@ -50,7 +50,7 @@ class LosslessOutputQueue(Queue):
         super().__init__(bitrate, maxsize, eventlist, logger)
         
         # Lossless state tracking
-        self._state_send = QueueState.READY
+        self._state_send = LosslessQueue.READY
         self._sending = 0  # Flag indicating packet is being transmitted
         
         # Virtual queue tracking
@@ -68,7 +68,7 @@ class LosslessOutputQueue(Queue):
     
     def is_paused(self) -> bool:
         """Check if queue is paused"""
-        return self._state_send == QueueState.PAUSED or self._state_send == QueueState.PAUSE_RECEIVED
+        return self._state_send == LosslessQueue.PAUSED or self._state_send == LosslessQueue.PAUSE_RECEIVED
     
     def receivePacket(self, pkt: Packet, prev: Optional[VirtualQueue] = None) -> None:
         """
@@ -114,12 +114,12 @@ class LosslessOutputQueue(Queue):
                     # Remote end is telling us to shut up
                     if self._sending:
                         # We have a packet in flight
-                        self._state_send = QueueState.PAUSE_RECEIVED
+                        self._state_send = LosslessQueue.PAUSE_RECEIVED
                     else:
-                        self._state_send = QueueState.PAUSED
+                        self._state_send = LosslessQueue.PAUSED
                 else:
                     # We are allowed to send!
-                    self._state_send = QueueState.READY
+                    self._state_send = LosslessQueue.READY
                     
                     # Start transmission if we have packets to send
                     if len(self._enqueued) > 0 and not self._sending:
@@ -153,7 +153,7 @@ class LosslessOutputQueue(Queue):
             self._logger.logQueue(self, QueueLogger.QueueEvent.PKT_ENQUEUE, pkt)
         
         # Start service if needed
-        if queueWasEmpty and self._state_send == QueueState.READY:
+        if queueWasEmpty and self._state_send == LosslessQueue.READY:
             assert len(self._enqueued) == 1
             self.beginService()
     
@@ -163,7 +163,7 @@ class LosslessOutputQueue(Queue):
         
         Corresponds to LosslessOutputQueue::beginService
         """
-        assert self._state_send == QueueState.READY and not self._sending
+        assert self._state_send == LosslessQueue.READY and not self._sending
         
         # Call parent beginService
         super().beginService()
@@ -229,10 +229,10 @@ class LosslessOutputQueue(Queue):
         self._sending = 0
         
         # Update state if pause was received
-        if self._state_send == QueueState.PAUSE_RECEIVED:
-            self._state_send = QueueState.PAUSED
+        if self._state_send == LosslessQueue.PAUSE_RECEIVED:
+            self._state_send = LosslessQueue.PAUSED
         
         # Continue service if more packets and not paused
         if len(self._enqueued) > 0:
-            if self._state_send == QueueState.READY:
+            if self._state_send == LosslessQueue.READY:
                 self.beginService()

@@ -16,8 +16,8 @@ if TYPE_CHECKING:
     from ..datacenter.switch import Switch
 
 
-class LosslessState(IntEnum):
-    """Lossless queue states - matches C++ enum"""
+class LosslessQueue(IntEnum):
+    """Lossless queue states - matches C++ LosslessQueue enum"""
     PAUSED = 0
     READY = 1  
     PAUSE_RECEIVED = 2
@@ -66,7 +66,7 @@ class LosslessInputQueue(Queue, VirtualQueue):
         assert self._high_threshold > self._low_threshold, "High threshold must be > low threshold"
         
         # State tracking
-        self._state_recv = LosslessState.READY
+        self._state_recv = LosslessQueue.READY
         
         # Wire and switch references
         self._wire: Optional[CallbackPipe] = None
@@ -94,8 +94,8 @@ class LosslessInputQueue(Queue, VirtualQueue):
         
         # Send PAUSE notifications if needed
         assert self._queuesize > 0
-        if self._queuesize > self._high_threshold and self._state_recv != LosslessState.PAUSED:
-            self._state_recv = LosslessState.PAUSED
+        if self._queuesize > self._high_threshold and self._state_recv != LosslessQueue.PAUSED:
+            self._state_recv = LosslessQueue.PAUSED
             self.sendPause(1000)
         
         # Check for overflow (should not happen in lossless)
@@ -128,8 +128,8 @@ class LosslessInputQueue(Queue, VirtualQueue):
         
         # Unblock if below low threshold
         assert self._queuesize >= 0
-        if self._queuesize < self._low_threshold and self._state_recv == LosslessState.PAUSED:
-            self._state_recv = LosslessState.READY
+        if self._queuesize < self._low_threshold and self._state_recv == LosslessQueue.PAUSED:
+            self._state_recv = LosslessQueue.READY
             self.sendPause(0)
     
     def sendPause(self, wait: int) -> None:

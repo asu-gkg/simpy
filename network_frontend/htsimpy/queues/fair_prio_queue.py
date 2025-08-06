@@ -22,8 +22,8 @@ class QueuePriority(IntEnum):
     Q_NONE = 3
 
 
-class LosslessQueueState(IntEnum):
-    """Lossless queue states - matches C++ enum"""
+class LosslessQueue(IntEnum):
+    """Lossless queue states - matches C++ LosslessQueue enum"""
     PAUSED = 0
     READY = 1
     PAUSE_RECEIVED = 2
@@ -168,7 +168,7 @@ class FairPriorityQueue(HostQueue):
         self._sending: Optional[Packet] = None
         
         # Lossless operation state
-        self._state_send = LosslessQueueState.READY
+        self._state_send = LosslessQueue.READY
     
     def getPriority(self, pkt: Packet) -> QueuePriority:
         """
@@ -231,12 +231,12 @@ class FairPriorityQueue(HostQueue):
                     # Remote end is telling us to shut up
                     if self.queuesize() > 0:
                         # We have a packet in flight
-                        self._state_send = LosslessQueueState.PAUSE_RECEIVED
+                        self._state_send = LosslessQueue.PAUSE_RECEIVED
                     else:
-                        self._state_send = LosslessQueueState.PAUSED
+                        self._state_send = LosslessQueue.PAUSED
                 else:
                     # We are allowed to send!
-                    self._state_send = LosslessQueueState.READY
+                    self._state_send = LosslessQueue.READY
                     
                     # Start transmission if we have packets to send
                     if self.queuesize() > 0:
@@ -274,7 +274,7 @@ class FairPriorityQueue(HostQueue):
             self._logger.logQueue(self, QueueLogger.QueueEvent.PKT_ENQUEUE, pkt)
         
         # Start service if queue was empty and we're ready to send
-        if queueWasEmpty and self._state_send == LosslessQueueState.READY:
+        if queueWasEmpty and self._state_send == LosslessQueue.READY:
             self.beginService()
     
     def beginService(self) -> None:
@@ -283,7 +283,7 @@ class FairPriorityQueue(HostQueue):
         
         Corresponds to FairPriorityQueue::beginService
         """
-        assert self._state_send == LosslessQueueState.READY
+        assert self._state_send == LosslessQueue.READY
         
         # Schedule the next dequeue event - check priorities from high to low
         for prio in range(QueuePriority.Q_HI, QueuePriority.Q_LO - 1, -1):
@@ -305,7 +305,7 @@ class FairPriorityQueue(HostQueue):
         
         Corresponds to FairPriorityQueue::completeService
         """
-        if self._state_send == LosslessQueueState.PAUSED:
+        if self._state_send == LosslessQueue.PAUSED:
             return
         
         if self._servicing == QueuePriority.Q_NONE or self._sending is None:
@@ -325,11 +325,11 @@ class FairPriorityQueue(HostQueue):
             pkt.sendOn()
         
         # Update state if pause was received
-        if self._state_send == LosslessQueueState.PAUSE_RECEIVED:
-            self._state_send = LosslessQueueState.PAUSED
+        if self._state_send == LosslessQueue.PAUSE_RECEIVED:
+            self._state_send = LosslessQueue.PAUSED
         
         # Schedule next packet if we have more and are allowed to send
-        if self.queuesize() > 0 and self._state_send == LosslessQueueState.READY:
+        if self.queuesize() > 0 and self._state_send == LosslessQueue.READY:
             self.beginService()
         else:
             self._servicing = QueuePriority.Q_NONE
