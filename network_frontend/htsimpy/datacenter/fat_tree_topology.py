@@ -334,6 +334,13 @@ class FatTreeTopology(Topology):
                         self.ff.add_queue(self.queues_nlp_ns[tor][srv][b])
                         self.ff.add_queue(self.queues_ns_nlp[srv][tor][b])
                     
+                    # Create LosslessInputQueue for LOSSLESS_INPUT modes (matches C++)
+                    if self._qt == QueueType.LOSSLESS_INPUT or self._qt == QueueType.LOSSLESS_INPUT_ECN:
+                        from ..queues.lossless_input_queue import LosslessInputQueue
+                        # Create LosslessInputQueue objects like C++
+                        hop_latency = self._hop_latency if hasattr(self, '_hop_latency') else 0
+                        # Note: C++ doesn't create LosslessInputQueue for host-ToR links, only ToR-Agg and Agg-Core
+                    
         # ToR to Aggregation links with bundle support
         for pod in range(k):
             for tor_in_pod in range(k // 2):
@@ -417,6 +424,16 @@ class FatTreeTopology(Topology):
                     self.queues_nlp_nup[tor_id][agg_id][b].setRemoteEndpoint(self.switches_up[agg_id])
                     self.queues_nup_nlp[agg_id][tor_id][b].setRemoteEndpoint(self.switches_lp[tor_id])
                     
+                    # Create LosslessInputQueue for LOSSLESS_INPUT modes (matches C++)
+                    if self._qt == QueueType.LOSSLESS_INPUT or self._qt == QueueType.LOSSLESS_INPUT_ECN:
+                        from ..queues.lossless_input_queue import LosslessInputQueue
+                        # Create LosslessInputQueue objects like C++
+                        hop_latency = self._hop_latency if hasattr(self, '_hop_latency') else 0
+                        LosslessInputQueue(self._eventlist, self.queues_nlp_nup[tor_id][agg_id][b], 
+                                         self.switches_up[agg_id], hop_latency)
+                        LosslessInputQueue(self._eventlist, self.queues_nup_nlp[agg_id][tor_id][b], 
+                                         self.switches_lp[tor_id], hop_latency)
+                    
         # Connect Agg <-> Core links  
         for agg_id in range(len(self.switches_up)):
             agg_in_pod = agg_id % (k // 2)
@@ -432,6 +449,16 @@ class FatTreeTopology(Topology):
                     # Set remote endpoints (matches C++)
                     self.queues_nup_nc[agg_id][core_id][b].setRemoteEndpoint(self.switches_c[core_id])
                     self.queues_nc_nup[core_id][agg_id][b].setRemoteEndpoint(self.switches_up[agg_id])
+                    
+                    # Create LosslessInputQueue for LOSSLESS_INPUT modes (matches C++)
+                    if self._qt == QueueType.LOSSLESS_INPUT or self._qt == QueueType.LOSSLESS_INPUT_ECN:
+                        from ..queues.lossless_input_queue import LosslessInputQueue
+                        # Create LosslessInputQueue objects like C++
+                        hop_latency = self._hop_latency if hasattr(self, '_hop_latency') else 0
+                        LosslessInputQueue(self._eventlist, self.queues_nup_nc[agg_id][core_id][b], 
+                                         self.switches_c[core_id], hop_latency)
+                        LosslessInputQueue(self._eventlist, self.queues_nc_nup[core_id][agg_id][b], 
+                                         self.switches_up[agg_id], hop_latency)
                 
     def _create_queue(self, size: int, direction: LinkDirection, 
                      tier: SwitchTier, is_tor: bool) -> BaseQueue:
@@ -811,6 +838,13 @@ class FatTreeTopology(Topology):
             route_out.push_back(self.queues_ns_nlp[src][src_tor][0])
             route_out.push_back(self.pipes_ns_nlp[src][src_tor][0])
             
+            # Add remote endpoint for LOSSLESS_INPUT modes
+            if self._qt == QueueType.LOSSLESS_INPUT or self._qt == QueueType.LOSSLESS_INPUT_ECN:
+                if hasattr(self.queues_ns_nlp[src][src_tor][0], 'getRemoteEndpoint'):
+                    remote = self.queues_ns_nlp[src][src_tor][0].getRemoteEndpoint()
+                    if remote:
+                        route_out.push_back(remote)
+            
             route_out.push_back(self.queues_nlp_ns[dst_tor][dest][0])
             route_out.push_back(self.pipes_nlp_ns[dst_tor][dest][0])
             
@@ -848,13 +882,34 @@ class FatTreeTopology(Topology):
                         route_out.push_back(self.queues_ns_nlp[src][src_tor][0])
                         route_out.push_back(self.pipes_ns_nlp[src][src_tor][0])
                         
+                        # Add remote endpoint for LOSSLESS_INPUT modes
+                        if self._qt == QueueType.LOSSLESS_INPUT or self._qt == QueueType.LOSSLESS_INPUT_ECN:
+                            if hasattr(self.queues_ns_nlp[src][src_tor][0], 'getRemoteEndpoint'):
+                                remote = self.queues_ns_nlp[src][src_tor][0].getRemoteEndpoint()
+                                if remote:
+                                    route_out.push_back(remote)
+                        
                         # ToR -> Agg (upward)
                         route_out.push_back(self.queues_nlp_nup[src_tor][upper][b_up])
                         route_out.push_back(self.pipes_nlp_nup[src_tor][upper][b_up])
                         
+                        # Add remote endpoint for LOSSLESS_INPUT modes
+                        if self._qt == QueueType.LOSSLESS_INPUT or self._qt == QueueType.LOSSLESS_INPUT_ECN:
+                            if hasattr(self.queues_nlp_nup[src_tor][upper][b_up], 'getRemoteEndpoint'):
+                                remote = self.queues_nlp_nup[src_tor][upper][b_up].getRemoteEndpoint()
+                                if remote:
+                                    route_out.push_back(remote)
+                        
                         # Agg -> ToR (downward)
                         route_out.push_back(self.queues_nup_nlp[upper][dst_tor][b_down])
                         route_out.push_back(self.pipes_nup_nlp[upper][dst_tor][b_down])
+                        
+                        # Add remote endpoint for LOSSLESS_INPUT modes
+                        if self._qt == QueueType.LOSSLESS_INPUT or self._qt == QueueType.LOSSLESS_INPUT_ECN:
+                            if hasattr(self.queues_nup_nlp[upper][dst_tor][b_down], 'getRemoteEndpoint'):
+                                remote = self.queues_nup_nlp[upper][dst_tor][b_down].getRemoteEndpoint()
+                                if remote:
+                                    route_out.push_back(remote)
                         
                         # ToR -> dst
                         route_out.push_back(self.queues_nlp_ns[dst_tor][dest][0])
@@ -909,13 +964,34 @@ class FatTreeTopology(Topology):
                                     route_out.push_back(self.queues_ns_nlp[src][src_tor][0])
                                     route_out.push_back(self.pipes_ns_nlp[src][src_tor][0])
                                     
+                                    # Add remote endpoint for LOSSLESS_INPUT modes
+                                    if self._qt == QueueType.LOSSLESS_INPUT or self._qt == QueueType.LOSSLESS_INPUT_ECN:
+                                        if hasattr(self.queues_ns_nlp[src][src_tor][0], 'getRemoteEndpoint'):
+                                            remote = self.queues_ns_nlp[src][src_tor][0].getRemoteEndpoint()
+                                            if remote:
+                                                route_out.push_back(remote)
+                                    
                                     # ToR -> Agg
                                     route_out.push_back(self.queues_nlp_nup[src_tor][upper][b1_up])
                                     route_out.push_back(self.pipes_nlp_nup[src_tor][upper][b1_up])
                                     
+                                    # Add remote endpoint for LOSSLESS_INPUT modes
+                                    if self._qt == QueueType.LOSSLESS_INPUT or self._qt == QueueType.LOSSLESS_INPUT_ECN:
+                                        if hasattr(self.queues_nlp_nup[src_tor][upper][b1_up], 'getRemoteEndpoint'):
+                                            remote = self.queues_nlp_nup[src_tor][upper][b1_up].getRemoteEndpoint()
+                                            if remote:
+                                                route_out.push_back(remote)
+                                    
                                     # Agg -> Core
                                     route_out.push_back(self.queues_nup_nc[upper][core][b2_up])
                                     route_out.push_back(self.pipes_nup_nc[upper][core][b2_up])
+                                    
+                                    # Add remote endpoint for LOSSLESS_INPUT modes
+                                    if self._qt == QueueType.LOSSLESS_INPUT or self._qt == QueueType.LOSSLESS_INPUT_ECN:
+                                        if hasattr(self.queues_nup_nc[upper][core][b2_up], 'getRemoteEndpoint'):
+                                            remote = self.queues_nup_nc[upper][core][b2_up].getRemoteEndpoint()
+                                            if remote:
+                                                route_out.push_back(remote)
                                     
                                     # C++ logic: uint32_t upper2 = MIN_POD_AGG_SWITCH(HOST_POD(dest)) + core % _agg_switches_per_pod;
                                     upper2 = self.MIN_POD_AGG_SWITCH(dst_pod) + core % self._agg_switches_per_pod
@@ -924,9 +1000,23 @@ class FatTreeTopology(Topology):
                                     route_out.push_back(self.queues_nc_nup[core][upper2][b2_down])
                                     route_out.push_back(self.pipes_nc_nup[core][upper2][b2_down])
                                     
+                                    # Add remote endpoint for LOSSLESS_INPUT modes  
+                                    if self._qt == QueueType.LOSSLESS_INPUT or self._qt == QueueType.LOSSLESS_INPUT_ECN:
+                                        if hasattr(self.queues_nc_nup[core][upper2][b2_down], 'getRemoteEndpoint'):
+                                            remote = self.queues_nc_nup[core][upper2][b2_down].getRemoteEndpoint()
+                                            if remote:
+                                                route_out.push_back(remote)
+                                    
                                     # Agg -> ToR
                                     route_out.push_back(self.queues_nup_nlp[upper2][dst_tor][b1_down])
                                     route_out.push_back(self.pipes_nup_nlp[upper2][dst_tor][b1_down])
+                                    
+                                    # Add remote endpoint for LOSSLESS_INPUT modes
+                                    if self._qt == QueueType.LOSSLESS_INPUT or self._qt == QueueType.LOSSLESS_INPUT_ECN:
+                                        if hasattr(self.queues_nup_nlp[upper2][dst_tor][b1_down], 'getRemoteEndpoint'):
+                                            remote = self.queues_nup_nlp[upper2][dst_tor][b1_down].getRemoteEndpoint()
+                                            if remote:
+                                                route_out.push_back(remote)
                                     
                                     # ToR -> dst
                                     route_out.push_back(self.queues_nlp_ns[dst_tor][dest][0])
