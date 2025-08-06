@@ -887,86 +887,84 @@ class FatTreeTopology(Topology):
                         self.check_non_null(route_out)
         else:
             # Different pods - must go through core switches
-            # Loop through all paths via core
-            for upper in range(self.MIN_POD_AGG_SWITCH(src_pod), self.MAX_POD_AGG_SWITCH(src_pod) + 1):
-                for upper2 in range(self.MIN_POD_AGG_SWITCH(dst_pod), self.MAX_POD_AGG_SWITCH(dst_pod) + 1):
-                    # Compute core switch ID based on aggregation switches
-                    # In fat tree, core switches connect specific agg switches across pods
-                    agg_in_src_pod = upper % self._agg_switches_per_pod
-                    agg_in_dst_pod = upper2 % self._agg_switches_per_pod
+            # Matches C++ logic for inter-pod routing
+            assert self._tiers == 3
+            pod = src_pod
+            
+            for upper in range(self.MIN_POD_AGG_SWITCH(pod), self.MAX_POD_AGG_SWITCH(pod) + 1):
+                podpos = upper % self._agg_switches_per_pod
+                
+                # C++ logic: for (uint32_t l = 0; l < _radix_up[AGG_TIER]/_bundlesize[CORE_TIER]; l++)
+                for l in range(self._tier_params[SwitchTier.AGG_TIER]['radix_up'] // self._bundlesize[2]):
+                    core = podpos + self._agg_switches_per_pod * l
                     
-                    # Each agg connects to k/2 core switches
-                    # Core switch is determined by the agg switch positions
-                    for c in range(self.k // 2):
-                        core = agg_in_src_pod * (self.k // 2) + c
-                        
-                        # Check if this core connects to the dst agg
-                        if (agg_in_dst_pod * (self.k // 2) <= core < (agg_in_dst_pod + 1) * (self.k // 2)):
-                            # Valid path through this core
-                            for b1_up in range(self._bundlesize[1]):  # src ToR -> src Agg
-                                for b2_up in range(self._bundlesize[2]):  # src Agg -> Core
-                                    for b2_down in range(self._bundlesize[2]):  # Core -> dst Agg
-                                        for b1_down in range(self._bundlesize[1]):  # dst Agg -> dst ToR
-                                            route_out = Route()
-                                            
-                                            # Build forward path
-                                            # src -> ToR
-                                            route_out.push_back(self.queues_ns_nlp[src][src_tor][0])
-                                            route_out.push_back(self.pipes_ns_nlp[src][src_tor][0])
-                                            
-                                            # ToR -> Agg
-                                            route_out.push_back(self.queues_nlp_nup[src_tor][upper][b1_up])
-                                            route_out.push_back(self.pipes_nlp_nup[src_tor][upper][b1_up])
-                                            
-                                            # Agg -> Core
-                                            route_out.push_back(self.queues_nup_nc[upper][core][b2_up])
-                                            route_out.push_back(self.pipes_nup_nc[upper][core][b2_up])
-                                            
-                                            # Core -> Agg
-                                            route_out.push_back(self.queues_nc_nup[core][upper2][b2_down])
-                                            route_out.push_back(self.pipes_nc_nup[core][upper2][b2_down])
-                                            
-                                            # Agg -> ToR
-                                            route_out.push_back(self.queues_nup_nlp[upper2][dst_tor][b1_down])
-                                            route_out.push_back(self.pipes_nup_nlp[upper2][dst_tor][b1_down])
-                                            
-                                            # ToR -> dst
-                                            route_out.push_back(self.queues_nlp_ns[dst_tor][dest][0])
-                                            route_out.push_back(self.pipes_nlp_ns[dst_tor][dest][0])
-                                            
-                                            if reverse:
-                                                # Build reverse path
-                                                route_back = Route()
-                                                
-                                                # dest -> ToR
-                                                route_back.push_back(self.queues_ns_nlp[dest][dst_tor][0])
-                                                route_back.push_back(self.pipes_ns_nlp[dest][dst_tor][0])
-                                                
-                                                # ToR -> Agg
-                                                route_back.push_back(self.queues_nlp_nup[dst_tor][upper2][b1_down])
-                                                route_back.push_back(self.pipes_nlp_nup[dst_tor][upper2][b1_down])
-                                                
-                                                # Agg -> Core
-                                                route_back.push_back(self.queues_nup_nc[upper2][core][b2_down])
-                                                route_back.push_back(self.pipes_nup_nc[upper2][core][b2_down])
-                                                
-                                                # Core -> Agg
-                                                route_back.push_back(self.queues_nc_nup[core][upper][b2_up])
-                                                route_back.push_back(self.pipes_nc_nup[core][upper][b2_up])
-                                                
-                                                # Agg -> ToR
-                                                route_back.push_back(self.queues_nup_nlp[upper][src_tor][b1_up])
-                                                route_back.push_back(self.pipes_nup_nlp[upper][src_tor][b1_up])
-                                                
-                                                # ToR -> src
-                                                route_back.push_back(self.queues_nlp_ns[src_tor][src][0])
-                                                route_back.push_back(self.pipes_nlp_ns[src_tor][src][0])
-                                                
-                                                route_out.set_reverse(route_back)
-                                                route_back.set_reverse(route_out)
-                                            
-                                            paths.append(route_out)
-                                            self.check_non_null(route_out)
+                    for b1_up in range(self._bundlesize[1]):  # src ToR -> src Agg  
+                        for b1_down in range(self._bundlesize[1]):  # dst Agg -> dst ToR
+                            for b2_up in range(self._bundlesize[2]):  # src Agg -> Core
+                                for b2_down in range(self._bundlesize[2]):  # Core -> dst Agg
+                                    route_out = Route()
+                                    
+                                    # Build forward path
+                                    # src -> ToR
+                                    route_out.push_back(self.queues_ns_nlp[src][src_tor][0])
+                                    route_out.push_back(self.pipes_ns_nlp[src][src_tor][0])
+                                    
+                                    # ToR -> Agg
+                                    route_out.push_back(self.queues_nlp_nup[src_tor][upper][b1_up])
+                                    route_out.push_back(self.pipes_nlp_nup[src_tor][upper][b1_up])
+                                    
+                                    # Agg -> Core
+                                    route_out.push_back(self.queues_nup_nc[upper][core][b2_up])
+                                    route_out.push_back(self.pipes_nup_nc[upper][core][b2_up])
+                                    
+                                    # C++ logic: uint32_t upper2 = MIN_POD_AGG_SWITCH(HOST_POD(dest)) + core % _agg_switches_per_pod;
+                                    upper2 = self.MIN_POD_AGG_SWITCH(dst_pod) + core % self._agg_switches_per_pod
+                                    
+                                    # Core -> Agg
+                                    route_out.push_back(self.queues_nc_nup[core][upper2][b2_down])
+                                    route_out.push_back(self.pipes_nc_nup[core][upper2][b2_down])
+                                    
+                                    # Agg -> ToR
+                                    route_out.push_back(self.queues_nup_nlp[upper2][dst_tor][b1_down])
+                                    route_out.push_back(self.pipes_nup_nlp[upper2][dst_tor][b1_down])
+                                    
+                                    # ToR -> dst
+                                    route_out.push_back(self.queues_nlp_ns[dst_tor][dest][0])
+                                    route_out.push_back(self.pipes_nlp_ns[dst_tor][dest][0])
+                                    
+                                    if reverse:
+                                        # Build reverse path
+                                        route_back = Route()
+                                        
+                                        # dest -> ToR
+                                        route_back.push_back(self.queues_ns_nlp[dest][dst_tor][0])
+                                        route_back.push_back(self.pipes_ns_nlp[dest][dst_tor][0])
+                                        
+                                        # ToR -> Agg
+                                        route_back.push_back(self.queues_nlp_nup[dst_tor][upper2][b1_down])
+                                        route_back.push_back(self.pipes_nlp_nup[dst_tor][upper2][b1_down])
+                                        
+                                        # Agg -> Core
+                                        route_back.push_back(self.queues_nup_nc[upper2][core][b2_down])
+                                        route_back.push_back(self.pipes_nup_nc[upper2][core][b2_down])
+                                        
+                                        # Core -> Agg
+                                        route_back.push_back(self.queues_nc_nup[core][upper][b2_up])
+                                        route_back.push_back(self.pipes_nc_nup[core][upper][b2_up])
+                                        
+                                        # Agg -> ToR
+                                        route_back.push_back(self.queues_nup_nlp[upper][src_tor][b1_up])
+                                        route_back.push_back(self.pipes_nup_nlp[upper][src_tor][b1_up])
+                                        
+                                        # ToR -> src
+                                        route_back.push_back(self.queues_nlp_ns[src_tor][src][0])
+                                        route_back.push_back(self.pipes_nlp_ns[src_tor][src][0])
+                                        
+                                        route_out.set_reverse(route_back)
+                                        route_back.set_reverse(route_out)
+                                    
+                                    paths.append(route_out)
+                                    self.check_non_null(route_out)
         
         print(f"pathcount {len(paths)}")
         return paths
