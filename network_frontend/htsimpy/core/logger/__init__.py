@@ -83,6 +83,12 @@ from .compat import (
     get_global_logger, set_global_logger
 )
 
+# Switch相关
+from .switch import (
+    SwitchLogger, SwitchLoggerSimple,
+    SwitchLoggerSampling, SwitchLoggerFactory
+)
+
 # 导出的主要类和接口
 __all__ = [
     # 核心类
@@ -129,5 +135,9 @@ __all__ = [
     
     # 向后兼容接口
     'LogLevel', 'ModernLogged', 'SimpleLogger',
-    'get_global_logger', 'set_global_logger'
+    'get_global_logger', 'set_global_logger',
+    
+    # Switch相关
+    'SwitchLogger', 'SwitchLoggerSimple',
+    'SwitchLoggerSampling', 'SwitchLoggerFactory'
 ]

@@ -13,7 +13,7 @@ from .topology import Topology
 from .host import Host
 from .connection_matrix import ConnectionMatrix, Connection, TriggerType
 from .firstfit import FirstFit
-from .constants import QueueType, LinkDirection, SwitchTier, PACKET_SIZE, DEFAULT_BUFFER_SIZE
+from .constants import HOST_NIC, SWITCH_BUFFER, RANDOM_BUFFER, FEEDER_BUFFER, DEFAULT_BUFFER_SIZE
 
 # Topology implementations
 from .star_topology import StarTopology
@@ -23,6 +23,9 @@ from .generic_topology import GenericTopology
 from .bcube_topology import BCubeTopology
 from .dragon_fly_topology import DragonFlyTopology
 from .oversubscribed_fat_tree_topology import OversubscribedFatTreeTopology
+from .camcube_topology import CamCubeTopology
+from .multihomed_fat_tree_topology import MultihomedFatTreeTopology
+from .fat_tree_switch import FatTreeSwitch
 
 # Traffic patterns and control
 from .incast import Incast, IncastPattern, TcpSrcTransfer
@@ -46,6 +49,9 @@ __all__ = [
     'BCubeTopology',
     'DragonFlyTopology',
     'OversubscribedFatTreeTopology',
+    'CamCubeTopology',
+    'MultihomedFatTreeTopology',
+    'FatTreeSwitch',
     
     # Traffic patterns
     'Incast',
@@ -60,9 +66,9 @@ __all__ = [
     'MultipathFlowEntry',
     
     # Constants
-    'QueueType',
-    'LinkDirection',
-    'SwitchTier',
-    'PACKET_SIZE',
+    'HOST_NIC',
+    'SWITCH_BUFFER',
+    'RANDOM_BUFFER',
+    'FEEDER_BUFFER',
     'DEFAULT_BUFFER_SIZE',
 ]

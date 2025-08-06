@@ -55,7 +55,10 @@ class FirstFit(EventSource):
         self.path_allocations: Dict[BaseQueue, int] = {}
         
         # Threshold for reallocation (bytes)
-        self.threshold = 10000000  # 10MB default
+        # C++ uses: threshold = (int)(timeAsSec(_scanPeriod) * HOST_NIC * 100)
+        # Convert scan_period from ps to seconds, multiply by HOST_NIC bps * 100
+        from .constants import HOST_NIC
+        self.threshold = int((scan_period / 1e12) * HOST_NIC * 100)
         
         # Start the periodic scanning
         if scan_period > 0:
@@ -80,49 +83,101 @@ class FirstFit(EventSource):
         
         This scans all flows and reallocates paths if needed
         based on current traffic patterns.
+        
+        Matches C++ FirstFit::run() logic.
         """
-        # Reset path allocations
-        self.path_allocations.clear()
-        
-        # List of flows that need reallocation
-        flows_to_reallocate = []
-        
-        # First pass: check which flows need reallocation
+        # First pass: remove flows that are below threshold
         for tcp_src, flow_entry in self.flow_counters.items():
-            # Get current byte count from TCP source
-            current_bytes = tcp_src.get_sent_bytes() if hasattr(tcp_src, 'get_sent_bytes') else 0
-            
-            # Calculate bytes sent since last scan
-            bytes_sent = current_bytes - flow_entry.byte_counter
-            flow_entry.byte_counter = current_bytes
-            
-            # Check if flow is significant enough to consider
-            if bytes_sent > self.threshold:
-                flows_to_reallocate.append((tcp_src, flow_entry, bytes_sent))
+            # Get current byte count - C++ uses _last_acked
+            if hasattr(tcp_src, '_last_acked'):
+                current_counter = tcp_src._last_acked
+            elif hasattr(tcp_src, 'get_last_acked'):
+                current_counter = tcp_src.get_last_acked()
+            else:
+                current_counter = 0
                 
-        # Sort flows by bytes sent (descending) - allocate heavy flows first
-        flows_to_reallocate.sort(key=lambda x: x[2], reverse=True)
-        
-        # Second pass: reallocate flows
-        for tcp_src, flow_entry, bytes_sent in flows_to_reallocate:
-            if self.net_paths and flow_entry.src < len(self.net_paths):
-                if flow_entry.dest < len(self.net_paths[flow_entry.src]):
+            delta = current_counter - flow_entry.byte_counter
+            
+            # Remove allocation if flow is allocated and delta is below threshold
+            if flow_entry.allocated and delta < self.threshold:
+                # Remove from path allocations
+                flow_entry.allocated = 0
+                
+                if flow_entry.route:
+                    # C++ iterates route elements at positions 1,3,5... (queues)
+                    for i in range(1, len(flow_entry.route._sinklist), 2):
+                        element = flow_entry.route._sinklist[i]
+                        if isinstance(element, BaseQueue) and element in self.path_allocations:
+                            self.path_allocations[element] -= 1
+                            
+        # Second pass: allocate flows that are above threshold
+        for tcp_src, flow_entry in self.flow_counters.items():
+            # Get current byte count
+            if hasattr(tcp_src, '_last_acked'):
+                current_counter = tcp_src._last_acked
+            elif hasattr(tcp_src, 'get_last_acked'):
+                current_counter = tcp_src.get_last_acked()
+            else:
+                current_counter = 0
+                
+            delta = current_counter - flow_entry.byte_counter
+            flow_entry.byte_counter = current_counter
+            
+            # Speed up detection for negative deltas (C++ logic)
+            if delta < 0:
+                flow_entry.byte_counter = 0
+                delta = current_counter
+                
+            # Allocate if not allocated and delta is above threshold
+            if not flow_entry.allocated and delta > self.threshold:
+                best_route_idx = -1
+                best_cost = 10000000  # Match C++ initial value
+                
+                if (self.net_paths and 
+                    flow_entry.src < len(self.net_paths) and
+                    flow_entry.dest < len(self.net_paths[flow_entry.src])):
+                    
                     paths = self.net_paths[flow_entry.src][flow_entry.dest]
                     
-                    if paths:
-                        # Find the least loaded path
-                        best_path = None
-                        best_load = float('inf')
+                    # Find path with minimum maximum queue allocation
+                    for p, route in enumerate(paths):
+                        current_cost = 0
                         
-                        for path in paths:
-                            path_load = self._calculate_path_load(path)
-                            if path_load < best_load:
-                                best_load = path_load
-                                best_path = path
-                                
-                        # Reallocate if we found a better path
-                        if best_path and best_path != flow_entry.route:
-                            self._reallocate_flow(tcp_src, flow_entry, best_path)
+                        # Check queue allocations along the path
+                        # C++ checks positions 1,3,5... (queues)
+                        for i in range(1, len(route._sinklist), 2):
+                            element = route._sinklist[i]
+                            if isinstance(element, BaseQueue):
+                                queue_alloc = self.path_allocations.get(element, 0)
+                                if queue_alloc > current_cost:
+                                    current_cost = queue_alloc
+                                    
+                        if current_cost < best_cost:
+                            best_cost = current_cost
+                            best_route_idx = p
+                            
+                    if best_route_idx >= 0:
+                        # Set allocated flag
+                        flow_entry.allocated = 1
+                        
+                        # Create new route (C++ copies and adds sink)
+                        new_route = paths[best_route_idx]
+                        
+                        # Update TCP source route
+                        if hasattr(tcp_src, 'replace_route'):
+                            tcp_src.replace_route(new_route)
+                        elif hasattr(tcp_src, 'update_route'):
+                            tcp_src.update_route(new_route)
+                            
+                        flow_entry.route = new_route
+                        
+                        # Update path allocations
+                        for i in range(1, len(new_route._sinklist), 2):
+                            element = new_route._sinklist[i]
+                            if isinstance(element, BaseQueue):
+                                if element not in self.path_allocations:
+                                    self.path_allocations[element] = 0
+                                self.path_allocations[element] += 1
                             
     def add_flow(self, src: int, dest: int, flow: TcpSrc):
         """
@@ -133,15 +188,15 @@ class FirstFit(EventSource):
             dest: Destination host ID
             flow: The TCP source flow
         """
-        # Get initial route if available
-        route = None
-        if (self.net_paths and 
-            src < len(self.net_paths) and 
-            dest < len(self.net_paths[src]) and
-            self.net_paths[src][dest]):
-            # Use first available path initially
-            route = self.net_paths[src][dest][0]
+        # C++ asserts that flow has a route
+        if hasattr(flow, '_route'):
+            route = flow._route
+        elif hasattr(flow, 'get_route'):
+            route = flow.get_route()
+        else:
+            route = None
             
+        # Create flow entry matching C++ constructor
         flow_entry = FlowEntry(
             byte_counter=0,
             allocated=0,
@@ -161,52 +216,6 @@ class FirstFit(EventSource):
         """
         if queue not in self.path_allocations:
             self.path_allocations[queue] = 0
-            
-    def _calculate_path_load(self, path: Route) -> int:
-        """
-        Calculate the load on a path
-        
-        Args:
-            path: The route to check
-            
-        Returns:
-            Total allocated load on the path
-        """
-        total_load = 0
-        
-        # Sum allocations for all queues in the path
-        for element in path.route_elements():
-            if isinstance(element, BaseQueue):
-                total_load += self.path_allocations.get(element, 0)
-                
-        return total_load
-        
-    def _reallocate_flow(self, tcp_src: TcpSrc, flow_entry: FlowEntry, new_path: Route):
-        """
-        Reallocate a flow to a new path
-        
-        Args:
-            tcp_src: The TCP source
-            flow_entry: Flow entry information
-            new_path: New path to use
-        """
-        # Remove allocation from old path
-        if flow_entry.route:
-            for element in flow_entry.route.route_elements():
-                if isinstance(element, BaseQueue) and element in self.path_allocations:
-                    self.path_allocations[element] -= flow_entry.allocated
-                    
-        # Add allocation to new path
-        flow_entry.route = new_path
-        for element in new_path.route_elements():
-            if isinstance(element, BaseQueue):
-                if element not in self.path_allocations:
-                    self.path_allocations[element] = 0
-                self.path_allocations[element] += flow_entry.allocated
-                
-        # Update the TCP source route if supported
-        if hasattr(tcp_src, 'update_route'):
-            tcp_src.update_route(new_path)
             
     def get_path_allocations(self) -> Dict[BaseQueue, int]:
         """

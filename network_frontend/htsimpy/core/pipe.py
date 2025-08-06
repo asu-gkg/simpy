@@ -182,6 +182,17 @@ class Pipe(EventSource, PacketSink, Drawable):
         """
         self._nodename = name
     
+    def setName(self, name: str) -> None:
+        """
+        对应 C++ 中的 Logged::setName() - 通过EventSource继承
+        设置对象名称
+        """
+        # 调用基类的setName方法
+        EventSource.setName(self, name)
+        # 可选：也更新nodename
+        if not self._nodename:
+            self._nodename = name
+    
     def set_next(self, next_sink: PacketSink) -> None:
         """
         对应 C++ 中的 void setNext(PacketSink* next_sink)

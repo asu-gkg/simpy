@@ -15,6 +15,7 @@ from ..queues.base_queue import BaseQueue
 from .topology import Topology
 from .firstfit import FirstFit
 from .host import Host
+from .constants import FEEDER_BUFFER, SWITCH_BUFFER, RANDOM_BUFFER
 
 
 class StarTopology(Topology):
@@ -77,32 +78,36 @@ class StarTopology(Topology):
         # Create pipes and queues for each host
         for i in range(self._no_of_nodes):
             # Outgoing (host to switch)
-            pipe_out = Pipe(self._rtt // 2, self.eventlist)
+            pipe_out = Pipe(self._rtt, self.eventlist)  # C++ uses full RTT
+            pipe_out.setName(f"Pipe-out-{i}")
             self.pipes_out.append(pipe_out)
             
             queue_out = RandomQueue(
                 bitrate=self._link_speed,
-                maxsize=100 * 1500,  # 100 packets
+                maxsize=(SWITCH_BUFFER + RANDOM_BUFFER) * 1500 * 8,  # Convert packets to bits
                 eventlist=self.eventlist,
-                logger=None
+                logger=None,
+                drop_threshold=(RANDOM_BUFFER) * 1500 * 8  # Match C++ memFromPkt(RANDOM_BUFFER)
             )
-            queue_out.setName(f"queue_out_{i}")
+            queue_out.setName(f"OUT_{i}")  # Match C++ naming
             self.queues_out.append(queue_out)
             
             # Set host's output queue
             self.hosts[i].set_queue(queue_out)
             
             # Incoming (switch to host)
-            pipe_in = Pipe(self._rtt // 2, self.eventlist)
+            pipe_in = Pipe(self._rtt, self.eventlist)  # C++ uses full RTT
+            pipe_in.setName(f"Pipe-in-{i}")
             self.pipes_in.append(pipe_in)
             
             queue_in = RandomQueue(
                 bitrate=self._link_speed,
-                maxsize=100 * 1500,  # 100 packets
+                maxsize=(SWITCH_BUFFER + RANDOM_BUFFER) * 1500 * 8,  # Convert packets to bits
                 eventlist=self.eventlist,
-                logger=None
+                logger=None,
+                drop_threshold=(RANDOM_BUFFER) * 1500 * 8  # Match C++ memFromPkt(RANDOM_BUFFER)
             )
-            queue_in.setName(f"queue_in_{i}")
+            queue_in.setName(f"IN_{i}")  # Match C++ naming
             self.queues_in.append(queue_in)
             
             # Register with logfile if needed
@@ -139,22 +144,25 @@ class StarTopology(Topology):
         if src == dest:
             return []
             
-        # Create route: src -> out_queue -> out_pipe -> in_queue -> in_pipe -> dest
+        # Create route matching C++ implementation
         route = Route()
         
-        # From source host
-        route.push_back(self.hosts[src])
+        # C++ creates a PQueue (feeder buffer) first
+        from ..queues.base_queue import Queue
+        pqueue = Queue(
+            service_rate=self._link_speed,
+            max_size=FEEDER_BUFFER * 1500 * 8,  # Convert packets to bits
+            eventlist=self.eventlist,
+            logger=None
+        )
+        pqueue.setName(f"PQueue_{src}_{dest}")
         
-        # Through source's outgoing queue and pipe
+        # Build route: PQueue -> out_queue -> out_pipe -> in_queue -> in_pipe
+        route.push_back(pqueue)
         route.push_back(self.queues_out[src])
         route.push_back(self.pipes_out[src])
-        
-        # Through destination's incoming queue and pipe
         route.push_back(self.queues_in[dest])
         route.push_back(self.pipes_in[dest])
-        
-        # To destination host
-        route.push_back(self.hosts[dest])
         
         return [route]
         
@@ -214,3 +222,12 @@ class StarTopology(Topology):
             Dictionary of queue to usage count
         """
         return self._link_usage.copy()
+        
+    def no_of_nodes(self) -> int:
+        """
+        Get number of nodes in topology
+        
+        Returns:
+            Number of nodes (hosts)
+        """
+        return self._no_of_nodes

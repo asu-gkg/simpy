@@ -68,7 +68,9 @@ class Topology(ABC):
         Returns:
             Number of nodes
         """
-        return self._no_of_nodes
+        # In C++, the default implementation calls abort()
+        # In Python, we raise NotImplementedError
+        raise NotImplementedError("no_of_nodes() must be implemented by subclass")
     
     def add_switch_loggers(self, logfile: Logfile, sample_period: int):
         """
@@ -78,6 +80,6 @@ class Topology(ABC):
             logfile: Logfile instance
             sample_period: Sampling period in picoseconds
         """
-        # Default implementation does nothing
-        # Subclasses can override to add specific logging
-        pass
+        # In C++, the default implementation calls abort()
+        # In Python, we raise NotImplementedError
+        raise NotImplementedError("add_switch_loggers() must be implemented by subclass")

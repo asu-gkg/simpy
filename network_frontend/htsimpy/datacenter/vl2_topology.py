@@ -15,7 +15,7 @@ from ..queues.base_queue import BaseQueue
 from .topology import Topology
 from .firstfit import FirstFit
 from .host import Host
-from .constants import PACKET_SIZE, DEFAULT_BUFFER_SIZE
+from .constants import PACKET_SIZE, DEFAULT_BUFFER_SIZE, SWITCH_BUFFER, RANDOM_BUFFER, FEEDER_BUFFER, HOST_NIC, CORE_TO_HOST
 
 
 # VL2 specific constants - from main.h
@@ -109,6 +109,30 @@ class VL2Topology(Topology):
         # Initialize the network
         self.init_network()
         
+    # Helper macros from C++
+    def HOST_TOR(self, host: int) -> int:
+        """Get ToR switch ID for a host"""
+        return host // self.NS
+        
+    def HOST_TOR_ID(self, host: int) -> int:
+        """Get host ID within its ToR switch"""
+        return host % self.NS
+        
+    def TOR_AGG1(self, tor: int) -> int:
+        """Get first aggregation switch for a ToR"""
+        return tor % self.NA
+        
+    def TOR_AGG2(self, tor: int) -> int:
+        """Get second aggregation switch for a ToR
+        Uses the TOR_AGG2 macro from main.h"""
+        # C++ uses complex macro: (10*NA - tor - 1)%NA
+        # This provides a different agg switch than TOR_AGG1
+        return (10 * self.NA - tor - 1) % self.NA
+        
+    def _host_id(self, server: int, tor: int) -> int:
+        """Calculate global host ID from server and ToR IDs"""
+        return tor * self.NS + server
+        
     def init_network(self):
         """Initialize the VL2 network topology"""
         
@@ -125,12 +149,12 @@ class VL2Topology(Topology):
         for i in range(self.NI):
             for a in range(self.NA):
                 # Forward direction (NI -> NA)
-                self.pipes_ni_na[i][a] = Pipe(self._rtt // 6, self.eventlist)
-                self.queues_ni_na[i][a] = self._create_queue(f"q_ni{i}_na{a}")
+                self.pipes_ni_na[i][a] = Pipe(self._rtt, self.eventlist)  # C++ uses full RTT
+                self.queues_ni_na[i][a] = self._create_core_queue(f"Queue-ni-na-{i}-{a}")
                 
                 # Reverse direction (NA -> NI)
-                self.pipes_na_ni[a][i] = Pipe(self._rtt // 6, self.eventlist)
-                self.queues_na_ni[a][i] = self._create_queue(f"q_na{a}_ni{i}")
+                self.pipes_na_ni[a][i] = Pipe(self._rtt, self.eventlist)  # C++ uses full RTT
+                self.queues_na_ni[a][i] = self._create_core_queue(f"Queue-na-ni-{a}-{i}")
                 
         # Aggregation to ToR links
         for a in range(self.NA):
@@ -138,31 +162,32 @@ class VL2Topology(Topology):
                 # Check if this ToR connects to this aggregation switch
                 if self._tor_connects_to_agg(t, a):
                     # Forward direction (NA -> NT)
-                    self.pipes_na_nt[a][t] = Pipe(self._rtt // 6, self.eventlist)
-                    self.queues_na_nt[a][t] = self._create_queue(f"q_na{a}_nt{t}")
+                    self.pipes_na_nt[a][t] = Pipe(self._rtt, self.eventlist)
+                    self.queues_na_nt[a][t] = self._create_core_queue(f"Queue-na-nt-{a}-{t}")
                     
                     # Reverse direction (NT -> NA)
-                    self.pipes_nt_na[t][a] = Pipe(self._rtt // 6, self.eventlist)
-                    self.queues_nt_na[t][a] = self._create_queue(f"q_nt{t}_na{a}")
+                    self.pipes_nt_na[t][a] = Pipe(self._rtt, self.eventlist)
+                    self.queues_nt_na[t][a] = self._create_core_queue(f"Queue-nt-na-{t}-{a}")
                     
         # ToR to Server links
         for t in range(self.NT):
             for s in range(self.NS):
                 # Forward direction (NT -> NS)
-                self.pipes_nt_ns[t][s] = Pipe(self._rtt // 6, self.eventlist)
-                self.queues_nt_ns[t][s] = self._create_queue(f"q_nt{t}_ns{s}")
+                self.pipes_nt_ns[t][s] = Pipe(self._rtt, self.eventlist)
+                self.queues_nt_ns[t][s] = self._create_queue(f"Queue-nt-ns-{t}-{s}")
                 
                 # Reverse direction (NS -> NT)  
-                self.pipes_ns_nt[s][t] = Pipe(self._rtt // 6, self.eventlist)
-                self.queues_ns_nt[s][t] = self._create_queue(f"q_ns{s}_nt{t}")
+                self.pipes_ns_nt[s][t] = Pipe(self._rtt, self.eventlist)
+                self.queues_ns_nt[s][t] = self._create_queue(f"Queue-ns-nt-{s}-{t}")
                 
-    def _create_queue(self, name: str) -> RandomQueue:
+    def _create_queue(self, name: str, speed_multiplier: int = 1) -> RandomQueue:
         """Create a queue with standard parameters"""
         queue = RandomQueue(
-            bitrate=self._link_speed,
-            maxsize=DEFAULT_BUFFER_SIZE * PACKET_SIZE,
+            bitrate=HOST_NIC * 1000000 * speed_multiplier,  # Convert Mbps to bps
+            maxsize=(SWITCH_BUFFER + RANDOM_BUFFER) * 1500 * 8,  # Convert packets to bits
             eventlist=self.eventlist,
-            logger=None
+            logger=None,
+            drop_threshold=RANDOM_BUFFER * 1500 * 8
         )
         queue.setName(name)
         
@@ -174,6 +199,10 @@ class VL2Topology(Topology):
             
         return queue
         
+    def _create_core_queue(self, name: str) -> RandomQueue:
+        """Create a core network queue with higher speed"""
+        return self._create_queue(name, CORE_TO_HOST)
+        
     def get_paths(self, src: int, dest: int) -> List[Route]:
         """Get paths using default direction"""
         return self.get_bidir_paths(src, dest, False)
@@ -182,40 +211,93 @@ class VL2Topology(Topology):
         """
         Get bidirectional paths between hosts in VL2
         
-        VL2 uses Valiant Load Balancing - traffic goes through a random
-        intermediate switch regardless of source/destination location.
+        Matches C++ VL2Topology::get_paths implementation
         """
         if reverse:
             src, dest = dest, src
             
-        if src >= self._no_of_nodes or dest >= self._no_of_nodes:
-            return []
-            
-        if src == dest:
-            return []
-            
         paths = []
         
-        # Get ToR switches for source and destination
-        src_tor = self._host_tor(src)
-        dst_tor = self._host_tor(dest)
-        
-        # Get aggregation switches connected to source and destination ToRs
-        src_aggs = self._get_agg_switches_for_tor(src_tor)
-        dst_aggs = self._get_agg_switches_for_tor(dst_tor)
-        
-        # VL2 uses 2-hop routing through intermediate switches
-        # Path: src -> src_tor -> src_agg -> intermediate -> dst_agg -> dst_tor -> dst
-        
-        for src_agg in src_aggs:
-            for dst_agg in dst_aggs:
-                # Try all intermediate switches
-                for inter in range(self.NI):
-                    route = self._build_vl2_route(src, dest, src_tor, dst_tor,
-                                                 src_agg, dst_agg, inter)
-                    if route:
-                        paths.append(route)
-                        
+        # Special case: same ToR switch
+        if self.HOST_TOR(src) == self.HOST_TOR(dest):
+            # Create PQueue (feeder buffer) as in C++
+            from ..queues.base_queue import Queue
+            pqueue = Queue(
+                service_rate=CORE_TO_HOST * HOST_NIC * 1000000,  # Convert to bps
+                max_size=FEEDER_BUFFER * 1500 * 8,
+                eventlist=self.eventlist,
+                logger=None
+            )
+            pqueue.setName(f"PQueue_{src}_{dest}")
+            
+            route = Route()
+            route.push_back(pqueue)
+            
+            # Server to ToR
+            route.push_back(self.queues_ns_nt[self.HOST_TOR_ID(src)][self.HOST_TOR(src)])
+            route.push_back(self.pipes_ns_nt[self.HOST_TOR_ID(src)][self.HOST_TOR(src)])
+            
+            # ToR to server
+            route.push_back(self.queues_nt_ns[self.HOST_TOR(dest)][self.HOST_TOR_ID(dest)])
+            route.push_back(self.pipes_nt_ns[self.HOST_TOR(dest)][self.HOST_TOR_ID(dest)])
+            
+            paths.append(route)
+            return paths
+            
+        # General case: different ToR switches
+        # C++ creates 4*NI paths
+        for i in range(4 * self.NI):
+            # Create PQueue (feeder buffer) as in C++
+            from ..queues.base_queue import Queue
+            pqueue = Queue(
+                service_rate=CORE_TO_HOST * HOST_NIC * 1000000,  # Convert to bps
+                max_size=FEEDER_BUFFER * 1500 * 8,
+                eventlist=self.eventlist,
+                logger=None
+            )
+            pqueue.setName(f"PQueue_{src}_{dest}")
+            
+            route = Route()
+            route.push_back(pqueue)
+            
+            # Server to ToR switch
+            route.push_back(self.queues_ns_nt[self.HOST_TOR_ID(src)][self.HOST_TOR(src)])
+            route.push_back(self.pipes_ns_nt[self.HOST_TOR_ID(src)][self.HOST_TOR(src)])
+            
+            # Choose aggregation switch for source
+            if i < 2 * self.NI:
+                agg_switch = self.TOR_AGG1(self.HOST_TOR(src))
+            else:
+                agg_switch = self.TOR_AGG2(self.HOST_TOR(src))
+                
+            # ToR to aggregation
+            route.push_back(self.queues_nt_na[self.HOST_TOR(src)][agg_switch])
+            route.push_back(self.pipes_nt_na[self.HOST_TOR(src)][agg_switch])
+            
+            # Aggregation to intermediate (i//4 selects the intermediate switch)
+            route.push_back(self.queues_na_ni[agg_switch][i // 4])
+            route.push_back(self.pipes_na_ni[agg_switch][i // 4])
+            
+            # Choose aggregation switch for destination
+            if i % NT2A == 0:
+                agg_switch_2 = self.TOR_AGG1(self.HOST_TOR(dest))
+            else:
+                agg_switch_2 = self.TOR_AGG2(self.HOST_TOR(dest))
+                
+            # Intermediate to aggregation
+            route.push_back(self.queues_ni_na[i // 4][agg_switch_2])
+            route.push_back(self.pipes_ni_na[i // 4][agg_switch_2])
+            
+            # Aggregation to ToR
+            route.push_back(self.queues_na_nt[agg_switch_2][self.HOST_TOR(dest)])
+            route.push_back(self.pipes_na_nt[agg_switch_2][self.HOST_TOR(dest)])
+            
+            # ToR to server
+            route.push_back(self.queues_nt_ns[self.HOST_TOR(dest)][self.HOST_TOR_ID(dest)])
+            route.push_back(self.pipes_nt_ns[self.HOST_TOR(dest)][self.HOST_TOR_ID(dest)])
+            
+            paths.append(route)
+            
         return paths
         
     def _build_vl2_route(self, src_host: int, dst_host: int,
@@ -283,6 +365,10 @@ class VL2Topology(Topology):
         """VL2 doesn't use direct neighbor concept"""
         return None
         
+    def no_of_nodes(self) -> int:
+        """Get number of nodes in topology"""
+        return self._no_of_nodes
+        
     # Helper functions matching C++ macros
     def _host_id(self, hid: int, tid: int) -> int:
         """HOST_ID macro - get global host ID from server and ToR IDs"""
@@ -296,21 +382,13 @@ class VL2Topology(Topology):
         """HOST_TOR_ID macro - get server ID within ToR"""
         return host % self.NS
         
-    def _tor_agg1(self, tor: int) -> int:
-        """TOR_AGG1 macro - primary aggregation switch for ToR"""
-        return tor % self.NA
-        
-    def _tor_agg2(self, tor: int) -> int:
-        """TOR_AGG2 macro - secondary aggregation switch for ToR"""
-        return (10 * self.NA - tor - 1) % self.NA
-        
     def _tor_connects_to_agg(self, tor: int, agg: int) -> bool:
         """Check if a ToR connects to an aggregation switch"""
-        return agg == self._tor_agg1(tor) or agg == self._tor_agg2(tor)
+        return agg == self.TOR_AGG1(tor) or agg == self.TOR_AGG2(tor)
         
     def _get_agg_switches_for_tor(self, tor: int) -> List[int]:
         """Get aggregation switches connected to a ToR"""
-        return [self._tor_agg1(tor), self._tor_agg2(tor)]
+        return [self.TOR_AGG1(tor), self.TOR_AGG2(tor)]
         
     def get_host(self, host_id: int) -> Optional[Host]:
         """Get a host by ID"""

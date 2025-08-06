@@ -275,6 +275,29 @@ class PacketSink(ABC):
         """对应 PacketSink() { _remoteEndpoint = NULL; }"""
         self._remoteEndpoint: Optional['PacketSink'] = None
     
+    def setRemoteEndpoint(self, q: Optional['PacketSink']) -> None:
+        """
+        对应 virtual void setRemoteEndpoint(PacketSink* q) {_remoteEndpoint = q;};
+        设置远程端点
+        """
+        self._remoteEndpoint = q
+    
+    def setRemoteEndpoint2(self, q: Optional['PacketSink']) -> None:
+        """
+        对应 virtual void setRemoteEndpoint2(PacketSink* q) {_remoteEndpoint = q;q->setRemoteEndpoint(this);};
+        设置双向远程端点
+        """
+        self._remoteEndpoint = q
+        if q is not None:
+            q.setRemoteEndpoint(self)
+    
+    def getRemoteEndpoint(self) -> Optional['PacketSink']:
+        """
+        对应 PacketSink* getRemoteEndpoint() {return _remoteEndpoint;}
+        获取远程端点
+        """
+        return self._remoteEndpoint
+    
     @abstractmethod
     def receivePacket(self, pkt: 'Packet', previousHop: Optional[VirtualQueue] = None) -> None:
         """

@@ -22,7 +22,8 @@
       "Bash(grep:*)",
       "Bash(rm:*)",
       "Bash(touch:*)",
-      "Bash(timeout 10 uv run:*)"
+      "Bash(timeout 10 uv run:*)",
+      "Bash(uv:*)"
     ],
     "deny": []
   }
