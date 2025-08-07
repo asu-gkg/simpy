@@ -55,18 +55,18 @@ class CircularBuffer(Generic[T]):
             if self._next_push < self._next_pop:
                 # 情况: 456789*123
                 # NI *, NP 1
-                # 复制 NP 到末尾的元素
-                for i in range(self._next_pop, self._size):
-                    new_queue[i - self._next_pop] = self._queue[i]
-                # 复制开头到 NI 的元素
+                # 匹配C++逻辑：复制原队列，然后将前半部分移到新空间
+                for i in range(self._size):
+                    new_queue[i] = self._queue[i]
+                # 将0到_next_push的元素复制到新空间后面
                 for i in range(0, self._next_push):
-                    new_queue[self._size - self._next_pop + i] = self._queue[i]
-                self._next_pop = 0
-                self._next_push = self._count - 1
+                    new_queue[self._size + i] = self._queue[i]
+                # 更新_next_push指针
+                self._next_push += self._size
             else:
                 # 情况: 123456789*
-                # 直接复制
-                for i in range(self._next_pop, self._next_push):
+                # 匹配C++逻辑：直接复制整个原队列
+                for i in range(self._size):
                     new_queue[i] = self._queue[i]
             
             self._queue = new_queue

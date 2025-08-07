@@ -103,7 +103,7 @@ class LosslessInputQueue(Queue, VirtualQueue):
             print(f" Queue {self._name} LOSSLESS not working! I should have dropped this packet {self._queuesize // Packet.data_packet_size()}")
         
         # Forward packet
-        if hasattr(pkt, 'nexthop') and hasattr(pkt, 'route'):
+        if hasattr(pkt, 'nexthop') and hasattr(pkt, 'route') and pkt.route() is not None:
             if pkt.nexthop() < pkt.route().size():
                 # Continue on route
                 pkt.sendOn2(self)

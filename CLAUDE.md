@@ -6,8 +6,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 SimPy is a Python implementation of SimAI, a comprehensive large-scale AI training simulation toolkit. It provides network simulation capabilities for distributed AI training workloads with three main backends:
 - **Analytical**: Fast analytical simulation using bus bandwidth abstractions
-- **NS3**: High-fidelity network simulation using NS-3 Python bindings
+- **NS3**: High-fidelity network simulation using NS-3 Python bindings  
 - **HTSimPy**: Pure Python implementation of the htsim network simulator
+- **PhyNet**: Physical network backend (experimental)
 
 ## Common Development Commands
 
@@ -31,8 +32,15 @@ uv run python main.py -w examples/workload_analytical.txt -n examples/busbw.yaml
 # Run with NS3 backend
 uv run python main.py --backend ns3 -w examples/workload_analytical.txt -c examples/network.conf
 
-# Run with specific network topology
-uv run python main.py -w examples/microAllReduce.txt -n examples/topo_8gpu.txt -g 8
+# Run with HTSimPy backend
+uv run python main.py --backend htsimpy -w examples/microAllReduce.txt -n examples/topo_8gpu.txt -g 8
+
+# Run HTSimPy examples directly
+uv run python network_frontend/htsimpy/examples/04_tcp_example/main.py
+timeout 10 uv run python network_frontend/htsimpy/examples/05_mptcp_example/main.py
+
+# Run with specific arguments
+uv run python main.py -g 8 --gpus-per-server 4 --gpu_type A100 -s 1.0 -i 0 --verbose
 ```
 
 ### Testing
@@ -47,7 +55,12 @@ uv run python -m pytest network_frontend/htsimpy/tests/test_eventlist.py -v
 uv run pytest -m "not ns3"
 
 # Run with coverage
-uv run pytest --cov-report=html
+uv run pytest --cov-report=html --cov-report=term-missing
+
+# Run HTSimPy test comparisons with C++
+make -f Makefile  # Build C++ comparison tests
+./test_cpp_comparison
+uv run python test_python_datacenter.py
 ```
 
 ### Code Quality
@@ -58,49 +71,56 @@ uv run isort simpy/ system/ workload/ network_frontend/
 
 # Type checking
 uv run mypy simpy/ system/ workload/ network_frontend/
+
+# Pre-commit hooks (if installed)
+uv run pre-commit install
+uv run pre-commit run --all-files
 ```
 
 ## Code Architecture
 
-### Directory Structure
-- `main.py`: Main entry point that dispatches to different backends
-- `network_frontend/`: Network simulation backends
-  - `analytical/`: Fast analytical simulation implementation
-  - `ns3/`: NS-3 Python binding wrapper (AstraSimNetwork)
-  - `htsimpy/`: Pure Python implementation of htsim
-- `system/`: Core simulation system components
-  - `sys.py`: Main system class managing NPUs and simulation
-  - `collective/`: Collective communication algorithms (Ring, AllToAll, etc.)
-  - `topology/`: Network topology implementations
-- `workload/`: Workload parsing and layer management
-- `SimAI/`: Reference C++ implementation (read-only)
+### Core Design Patterns
 
-### Key Components
+1. **Event-Driven Simulation**: 
+   - Central `EventList` singleton manages discrete event scheduling
+   - All components inherit from `EventSource` to participate in simulation
+   - Events are scheduled with microsecond precision timestamps
 
-1. **EventList (htsimpy)**: Core event-driven simulation engine
-   - Singleton pattern for global time management
-   - Handle-based event scheduling
-   - Support for cancellation and rescheduling
+2. **C++ Compatibility**:
+   - Python implementations precisely mirror C++ SimAI/AstraSim interfaces
+   - Maintains same class hierarchies and method signatures
+   - Uses integer timestamps (SimTime = int) for microsecond precision
 
-2. **Network Backends**:
-   - Analytical: Uses bus bandwidth calculations from busbw.yaml
-   - NS3: Integrates with NS-3 for packet-level simulation
-   - HTSimPy: Pure Python TCP/network simulation
+3. **Network Abstraction**:
+   - Common `AstraNetworkAPI` interface for all backends
+   - Backends handle packet-level or analytical simulation
+   - Support for different queue types (FIFO, Priority, Lossless, ECN)
 
-3. **System Architecture**:
-   - NPU abstraction with queues for compute/memory/network
-   - Stream-based scheduling with dependencies
-   - MockNccl for NCCL-compatible collective operations
+### Key Implementation Details
 
-4. **Workload Processing**:
-   - Parses AICB-generated workload files
-   - Supports various parallelism strategies (TP/EP/PP/DP)
-   - Layer-based execution with communication patterns
+**HTSimPy Backend Architecture**:
+- `EventList`: Global event scheduler using handle-based cancellation
+- `Packet` hierarchy: TCP, NDP packets with proper header/payload separation  
+- `Queue` types: FIFO, CompositePrioQueue, LosslessInput/Output queues
+- `Topology` classes: FatTree, VL2, BCube, DragonFly implementations
+- Logging system: Structured logging matching C++ output format
+
+**System Layer**:
+- `Sys` class: Main simulation controller managing NPUs
+- Stream-based execution with dependency tracking
+- MockNccl: NCCL-compatible collective implementation
+- Queue levels: Compute, Memory, Network, Collective queues
+
+**Workload Processing**:
+- Parses AICB workload format
+- Supports TP/EP/PP/DP/SP parallelism strategies
+- Layer-based execution with communication patterns
 
 ### Important Implementation Notes
 
-- The project is a Python port of the C++ SimAI/AstraSim codebase
-- Maintains compatibility with C++ interfaces and behavior
-- Uses threading locks (RLock) for thread-safe operations
-- NS3 backend requires either pip wheel or source compilation
-- Event timestamps use integer microseconds (SimTime = int)
+- Thread safety via `threading.RLock` for concurrent operations
+- NS3 backend requires NS3 Python bindings (pip or source)
+- HTSimPy uses pure Python without external dependencies
+- Circular buffer implementation for packet reordering
+- Queue enum values must match C++ (e.g., LOSSLESS_INPUT = 3)
+- Fat tree routing uses deterministic inter-pod paths for consistency

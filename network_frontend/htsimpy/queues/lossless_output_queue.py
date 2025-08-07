@@ -32,6 +32,16 @@ class LosslessOutputQueue(Queue):
     Receives PAUSE frames from downstream and stops/starts sending accordingly
     """
     
+    # Static thresholds - must be set before creating queues
+    _low_threshold: int = 0
+    _high_threshold: int = 0
+    
+    @classmethod
+    def set_thresholds(cls, low: int, high: int) -> None:
+        """Set global thresholds for all lossless output queues"""
+        cls._low_threshold = low
+        cls._high_threshold = high
+    
     def __init__(self, bitrate: int, maxsize: int, eventlist: EventList,
                  logger: Optional[QueueLogger] = None, ECN: int = 0, K: int = 0):
         """

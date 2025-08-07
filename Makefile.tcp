@@ -1,0 +1,39 @@
+CXX = g++
+CXXFLAGS = -I. -Icsg-htsim/sim -Icsg-htsim/sim/datacenter -std=c++11 -g -O2
+LDFLAGS = 
+
+# Source files for TCP test
+SRCS = test_cpp_tcp.cpp \
+       csg-htsim/sim/eventlist.cpp \
+       csg-htsim/sim/network.cpp \
+       csg-htsim/sim/queue.cpp \
+       csg-htsim/sim/pipe.cpp \
+       csg-htsim/sim/tcp.cpp \
+       csg-htsim/sim/tcppacket.cpp \
+       csg-htsim/sim/loggers.cpp \
+       csg-htsim/sim/config.cpp \
+       csg-htsim/sim/logfile.cpp \
+       csg-htsim/sim/route.cpp \
+       csg-htsim/sim/datacenter/fat_tree_topology.cpp \
+       csg-htsim/sim/datacenter/fat_tree_switch.cpp \
+       csg-htsim/sim/datacenter/topology.cpp \
+       csg-htsim/sim/datacenter/firstfit.cpp
+
+# Object files
+OBJS = $(SRCS:.cpp=.o)
+
+# Target
+TARGET = test_cpp_tcp
+
+all: $(TARGET)
+
+$(TARGET): $(OBJS)
+	$(CXX) $(CXXFLAGS) -o $@ $^ $(LDFLAGS)
+
+%.o: %.cpp
+	$(CXX) $(CXXFLAGS) -c $< -o $@
+
+clean:
+	rm -f $(OBJS) $(TARGET) cpp_tcp_test.dat python_tcp_test.dat
+
+.PHONY: all clean

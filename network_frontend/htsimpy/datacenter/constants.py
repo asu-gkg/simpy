@@ -46,6 +46,7 @@ class SwitchTier(Enum):
 # Default network parameters
 HOST_NIC_SPEED = 100000  # Host NIC speed in Mbps (100Gbps)
 CORE_TO_HOST_RATIO = 4   # Oversubscription ratio
+CORE_TO_HOST = 4         # Alias for backward compatibility
 
 # Default buffer sizes (in packets)
 DEFAULT_BUFFER_SIZE = 100

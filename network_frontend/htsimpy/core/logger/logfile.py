@@ -104,3 +104,9 @@ class Logfile:
     def getEventList(self) -> EventList:
         """获取事件列表"""
         return self._eventlist
+    
+    def close(self) -> None:
+        """关闭日志文件"""
+        if self._file:
+            self._file.close()
+            self._file = None

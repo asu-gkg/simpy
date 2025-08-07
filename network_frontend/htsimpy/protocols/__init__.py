@@ -20,10 +20,18 @@ from .multipath_tcp import (
     MultipathTcpSrc, MultipathTcpSink,
     UNCOUPLED, FULLY_COUPLED, COUPLED_INC, COUPLED_TCP, COUPLED_EPSILON
 )
+from .dctcp import DCTCPSrc, DCTCPSink, ECN_ECHO
+from .ndp import (
+    NdpSrc, NdpSink, NdpPacket, NdpAck, NdpNack, NdpPull,
+    NdpRTSPacer, RouteStrategy, FeedbackType
+)
 
 __all__ = [
     'BaseProtocol',
     'TcpSrc', 'TcpSink', 'TcpRtxTimerScanner',
     'MultipathTcpSrc', 'MultipathTcpSink',
     'UNCOUPLED', 'FULLY_COUPLED', 'COUPLED_INC', 'COUPLED_TCP', 'COUPLED_EPSILON',
+    'DCTCPSrc', 'DCTCPSink', 'ECN_ECHO',
+    'NdpSrc', 'NdpSink', 'NdpPacket', 'NdpAck', 'NdpNack', 'NdpPull',
+    'NdpRTSPacer', 'RouteStrategy', 'FeedbackType',
 ]

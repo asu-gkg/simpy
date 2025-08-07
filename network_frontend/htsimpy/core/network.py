@@ -43,7 +43,7 @@ PacketId = int  # typedef uint32_t packetid_t
 FlowId = int    # typedef uint32_t flowid_t
 
 # 常量定义
-DEFAULTDATASIZE = 1500  # 对应network.cpp中的 #define DEFAULTDATASIZE 1500
+DEFAULTDATASIZE = 9000  # 对应main_roce.cpp中的默认值: int packet_size = 9000;
 FLOW_ID_DYNAMIC_BASE = 1000000000  # 对应network.cpp中的 #define FLOW_ID_DYNAMIC_BASE 1000000000
 UINT32_MAX = 0xFFFFFFFF  # 对应C++的UINT32_MAX
 

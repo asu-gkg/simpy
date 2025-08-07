@@ -48,10 +48,10 @@ def nanoseconds_to_picoseconds(nanoseconds: float) -> SimTime:
     return int(nanoseconds * 1_000)
 
 # 网络配置常量
-DEFAULT_PACKET_SIZE = 1500  # 字节
-DEFAULT_MTU = 1500  # 最大传输单元
-DEFAULT_BUFFER_SIZE = 1024  # 默认缓冲区大小
-DEFAULT_QUEUE_SIZE = 64  # 默认队列大小
+DEFAULT_PACKET_SIZE = 9000  # 字节 - 对应main_roce.cpp: int packet_size = 9000
+DEFAULT_MTU = 9000  # 最大传输单元
+DEFAULT_BUFFER_SIZE = 100  # 默认缓冲区大小
+DEFAULT_QUEUE_SIZE = 15  # 默认队列大小(数据包数) - 对应main_roce.cpp: DEFAULT_QUEUE_SIZE 15
 
 # 链路速度常量 (Gbps)
 LINK_SPEED_1G = 1_000_000_000
@@ -82,10 +82,10 @@ DEFAULT_LEAF_SPINE_LEAVES = 8
 DEFAULT_LEAF_SPINE_SPINES = 4
 
 # 队列配置
-DEFAULT_FIFO_QUEUE_SIZE = 64
-DEFAULT_PRIORITY_QUEUE_SIZE = 64
-DEFAULT_RANDOM_QUEUE_SIZE = 64
-DEFAULT_LOSSLESS_QUEUE_SIZE = 64
+DEFAULT_FIFO_QUEUE_SIZE = 15  # 数据包数
+DEFAULT_PRIORITY_QUEUE_SIZE = 15  # 数据包数
+DEFAULT_RANDOM_QUEUE_SIZE = 15  # 数据包数
+DEFAULT_LOSSLESS_QUEUE_SIZE = 15  # 数据包数
 
 # 统计配置
 DEFAULT_STATS_INTERVAL = milliseconds_to_picoseconds(100)  # 100ms

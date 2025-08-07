@@ -194,19 +194,19 @@ class CompositePrioQueue(Queue):
             if self._crt < self._ratio_high:
                 self._serv = QueueType.QUEUE_HIGH
                 # Service from back (oldest packet)
-                self.eventlist.sourceIsPendingRel(self, self.drainTime(self._enqueued_high[-1]))
+                self._eventlist.source_is_pending_rel(self, self.drain_time(self._enqueued_high[-1]))
             else:
                 assert self._crt < self._ratio_high + self._ratio_low
                 self._serv = QueueType.QUEUE_LOW
-                self.eventlist.sourceIsPendingRel(self, self.drainTime(self._enqueued_low[-1]))
+                self._eventlist.source_is_pending_rel(self, self.drain_time(self._enqueued_low[-1]))
             return
         
         if self._enqueued_high:
             self._serv = QueueType.QUEUE_HIGH
-            self.eventlist.sourceIsPendingRel(self, self.drainTime(self._enqueued_high[-1]))
+            self._eventlist.source_is_pending_rel(self, self.drain_time(self._enqueued_high[-1]))
         elif self._enqueued_low:
             self._serv = QueueType.QUEUE_LOW
-            self.eventlist.sourceIsPendingRel(self, self.drainTime(self._enqueued_low[-1]))
+            self._eventlist.source_is_pending_rel(self, self.drain_time(self._enqueued_low[-1]))
         else:
             assert False, "beginService called with empty queues"
             self._serv = QueueType.QUEUE_INVALID

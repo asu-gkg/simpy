@@ -119,7 +119,7 @@ class FIFOQueue(BaseQueue):
         """
         self.complete_service()
     
-    def receive_packet(self, packet) -> None:
+    def receivePacket(self, packet) -> None:
         """
         接收数据包 - 对应 C++ 的 Queue::receivePacket()
         
@@ -127,7 +127,7 @@ class FIFOQueue(BaseQueue):
             packet: 要接收的数据包
         """
         # 检查容量限制 - 对应 C++ 的 if (_queuesize+pkt.size() > _maxsize)
-        if self._queuesize_bytes + packet.size > self._maxsize:
+        if self._queuesize_bytes + packet.size() > self._maxsize:
             # 数据包不能放入队列，丢弃它
             if self._logger:
                 # 对应 C++ 的 _logger->logQueue(*this, QueueLogger::PKT_DROP, pkt)
@@ -135,7 +135,7 @@ class FIFOQueue(BaseQueue):
             
             # 对应 C++ 的 pkt.flow().logTraffic(pkt, *this, TrafficLogger::PKT_DROP)
             if hasattr(packet, 'flow') and packet.flow():
-                packet.flow().log_traffic(packet, self, TrafficLogger.TrafficEvent.PKT_DROP)
+                packet.flow().logTraffic(packet, self, TrafficLogger.TrafficEvent.PKT_DROP)
             
             packet.free()
             self._num_drops += 1
@@ -143,14 +143,14 @@ class FIFOQueue(BaseQueue):
         
         # 记录数据包到达 - 对应 C++ 的 pkt.flow().logTraffic(pkt, *this, TrafficLogger::PKT_ARRIVE)
         if hasattr(packet, 'flow') and packet.flow():
-            packet.flow().log_traffic(packet, self, TrafficLogger.TrafficEvent.PKT_ARRIVE)
+            packet.flow().logTraffic(packet, self, TrafficLogger.TrafficEvent.PKT_ARRIVE)
         
         # 入队数据包 - 对应 C++ 的入队逻辑
         queue_was_empty = len(self._enqueued) == 0
         
         # 对应 C++ 的 _enqueued.push(pkt_p); _queuesize += pkt.size();
         self._enqueued.append(packet)  # 推到队尾（右端）
-        self._queuesize_bytes += packet.size
+        self._queuesize_bytes += packet.size()
         
         # 记录入队日志 - 对应 C++ 的 _logger->logQueue(*this, QueueLogger::PKT_ENQUEUE, pkt)
         if self._logger:
@@ -176,7 +176,7 @@ class FIFOQueue(BaseQueue):
         packet = self._enqueued[0]
         
         # 计算传输时间（皮秒）- 对应 C++ 的 drainTime(_enqueued.back())
-        transmission_time = self.drainTime(packet)
+        transmission_time = self.drain_time(packet)
         
         # 调度下一个服务事件 - 对应 C++ 的 eventlist().sourceIsPendingRel(*this, drainTime(_enqueued.back()));
         self._eventlist.source_is_pending_rel(self, transmission_time)
@@ -195,18 +195,18 @@ class FIFOQueue(BaseQueue):
         packet = self._enqueued.popleft()  # FIFO：从左端（队头）取出
         
         # 更新队列字节大小 - 对应 C++ 的 _queuesize -= pkt->size();
-        self._queuesize_bytes -= packet.size
+        self._queuesize_bytes -= packet.size()
         
         # 记录数据包出发 - 对应 C++ 的 pkt->flow().logTraffic(*pkt, *this, TrafficLogger::PKT_DEPART)
         if hasattr(packet, 'flow') and packet.flow():
-            packet.flow().log_traffic(packet, self, TrafficLogger.TrafficEvent.PKT_DEPART)
+            packet.flow().logTraffic(packet, self, TrafficLogger.TrafficEvent.PKT_DEPART)
         
         # 记录服务日志 - 对应 C++ 的 if (_logger) _logger->logQueue(*this, QueueLogger::PKT_SERVICE, *pkt);
         if self._logger:
             self._logger.logQueue(self, QueueLogger.QueueEvent.PKT_SERVICE, packet)
         
         # 记录数据包传输时间用于利用率统计 - 对应 C++ 的 log_packet_send(drainTime(pkt));
-        transmission_time = self.drainTime(packet)
+        transmission_time = self.drain_time(packet)
         self.log_packet_send(transmission_time)
         
         # 发送数据包到下一跳 - 对应 C++ 的 pkt->sendOn()

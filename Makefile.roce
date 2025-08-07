@@ -1,0 +1,49 @@
+CXX = g++
+CXXFLAGS = -I. -Icsg-htsim/sim -Icsg-htsim/sim/datacenter -std=c++11 -g -O2
+LDFLAGS = 
+
+# Source files for main_roce
+SRCS = csg-htsim/sim/datacenter/main_roce.cpp \
+       csg-htsim/sim/eventlist.cpp \
+       csg-htsim/sim/network.cpp \
+       csg-htsim/sim/queue.cpp \
+       csg-htsim/sim/pipe.cpp \
+       csg-htsim/sim/loggers.cpp \
+       csg-htsim/sim/config.cpp \
+       csg-htsim/sim/logfile.cpp \
+       csg-htsim/sim/randomqueue.cpp \
+       csg-htsim/sim/clock.cpp \
+       csg-htsim/sim/queue_lossless_input.cpp \
+       csg-htsim/sim/queue_lossless_output.cpp \
+       csg-htsim/sim/datacenter/fat_tree_topology.cpp \
+       csg-htsim/sim/datacenter/firstfit.cpp \
+       csg-htsim/sim/datacenter/connection_matrix.cpp \
+       csg-htsim/sim/route.cpp \
+       csg-htsim/sim/roce.cpp \
+       csg-htsim/sim/fairpullqueue.cpp \
+       csg-htsim/sim/compositequeue.cpp \
+       csg-htsim/sim/compositeprioqueue.cpp \
+       csg-htsim/sim/ecnqueue.cpp \
+       csg-htsim/sim/eth_pause_packet.cpp
+
+# Object files
+OBJS = $(SRCS:.cpp=.o)
+
+# Target
+TARGET = htsim_roce
+
+all: $(TARGET)
+
+$(TARGET): $(OBJS)
+	$(CXX) $(CXXFLAGS) -o $@ $^ $(LDFLAGS)
+
+%.o: %.cpp
+	$(CXX) $(CXXFLAGS) -c $< -o $@
+
+clean:
+	rm -f $(OBJS) $(TARGET)
+
+run_test:
+	./$(TARGET) -nodes 4 -conns 1 -q 15 -end 100 -o cpp_roce_output.dat
+
+.PHONY: all clean run_test
